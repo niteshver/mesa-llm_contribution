@@ -92,6 +92,7 @@ class TestModuleLLM:
         ]
 
         # Test get_messages no system prompt and no prompt
+        llm = ModuleLLM(llm_model="openai/gpt-4o")
         messages = llm.get_messages(prompt=None)
         assert messages == [{"role": "system", "content": ""}]
 
