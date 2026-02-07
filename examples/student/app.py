@@ -65,7 +65,7 @@ def student_portrayal(agent):
 
     portrayal = {
         "size": 50,
-        "shape": "circle",
+        "shape": "rectangle",
         "color": agent_colors[agent.state],
     }
     return portrayal
