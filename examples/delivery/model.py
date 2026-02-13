@@ -3,7 +3,7 @@ from mesa.model import Model
 from mesa.space import MultiGrid
 from rich import print
 
-from examples.delivery.agent import DeliveryAgent,customer,DeliveryState
+from examples.delivery.agent import DeliveryAgent,customer,DELIVERYAGENTSTATE,PRODUCTSTATE
 from mesa_llm.reasoning.reasoning import Reasoning
 
 class DeliveryModel(Model):
@@ -24,8 +24,17 @@ class DeliveryModel(Model):
         self.grid = MultiGrid(self.breath,self.height,torus = False)
 
         model_reporter = {
+            "Active" :lambda m: sum(
+                1 for agents in m.agents
+                if isinstance(agent,DeliveryAgent) and agent.state == DELIVERYAGENTSTATE.ACTIVE
+            ),
+            "Delivered" :lambda m: sum(
+                1 for agent in m.agents
+                if isinstance(agent,PRODUCTSTATE) and agents.state = PRODUCTSTATE.DELIVERED
+            )
+            }
 
-        }
+        
         delivery_agent_prompt = "You are a delivery guy, You have to deliver the order to customer." \
         "You have limitde time, Deliver the product in that time."
 
@@ -60,4 +69,4 @@ class DeliveryModel(Model):
         for a, i, j in zip(agents, x, y):
             self.grid.place_agent(a, (i, j))
 
-            
+
