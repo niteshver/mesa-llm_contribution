@@ -1,115 +1,171 @@
+  
 import math
 from enum import Enum
 
 import mesa
-
 from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.memory.st_lt_memory import STLTMemory
 from mesa_llm.tools.tool_manager import ToolManager
+import litellm 
+litellm._turn_on_debug()
+from litellm import completion
+
 
 CITIZEN_TOOL_MANAGER = ToolManager()
 
+
 class CitizenState(Enum):
-    REST = 3
-    MIGRATE = 3
+    REST = 1
+    MIGRATE = 2
 
-class Citizen(LLMAgent,mesa.discrete_space.cell_agent):
+
+class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
     """
-    Building an Agent based model based on planed of
-    migration. like russia ukraine war wher people have to 
-    migrate from one place to other to save himself
-    If above avergae of an hosuehold have agree for migrate
-    then the entire household migrate.
-    Migrate depend on risk nearby and neighbour if they 
-    migrate then the chance of migrate is high 
-    Ther are several fomula where we calculate risk of 
-    migrate.
+    Conflict-driven migration agent.
+
+    Migration decision is fully mathematical.
+    LLM is used ONLY to explain the decision.
     """
 
-    def __init(self,
-            model,
-            reasoning,
-            llm_model,
-            system_prompt,
-            vision,
-            internal_state,
-            step_prompt,
-            spatical_decay_parameter = 0.5,
-            temporary_decay_paramter = 0.5,
-            intensity_of_event = 0.5,
-            memory_retention_prmtr = 1,
-            previous_perceived_risk = 0.5,
-            threshehold = 0.5
-            ):
+    def __init__(
+        self,
+        model,
+        reasoning,
+        llm_model,
+        system_prompt,
+        step_prompt,
+        vision,
+        internal_state=None,
+
+        
+    ):
         super().__init__(
             model=model,
-            reasoning = reasoning,
+            reasoning=reasoning,
             llm_model=llm_model,
             system_prompt=system_prompt,
-            vision=vision,
+            step_prompt=step_prompt,
             internal_state=internal_state,
-            step_prompt=step_prompt   
+            vision=vision,
         )
-        self.distance = self.random.random()
-        self.time_difference = self.random.random()
-        self.memory_retention_prmtr = self.random.random()
-        self.growth_rate = self.random.random()
-        self.spatical_decay_prmtr = spatical_decay_parameter
-        self.temporary_decay_paramter = temporary_decay_paramter
-        self.intensity_of_event = intensity_of_event
-        self.memory_retention_prmtr = memory_retention_prmtr
-        self.previous_perceived_risk = previous_perceived_risk
-        self.migration_prob = None
 
-        self.memory = STLTMemory(agent=self,
-                                display=True,
-                                llm_model="Ollama/granite"
-                                )
-        self.threshehold = threshehold
-        self.internal_state.append(
-            f"on a scale of 0 to 1 , my distance b/w agent and event is {self.distance:.4f}"
-        )
-        self.internal_state.append(
-            f"On a scale of 0 to 1, my time difference is {self.time_differnce:.4f}"
-        )
-        self.internal_state.append(
-            f" my migration probability is {self.migration_prob:.4f}"
-        )
+        self.household_id = self.random.randint(0, self.model.num_households - 1)
+        self.risk_proneness = self.random.uniform(0.5, 1.5)
+        self.distance = self.random.uniform(0, 1)
+        self.time_difference = self.random.uniform(0, 1)
+        self.previous_perceived_risk = 0.0
+        self.migration_prob = 0.0
+        # self.safe_zone = []        # check 3 paramter 
+        # self.daily_migrants = 0
+        # self.total_migrants = 0
+        self.state = CitizenState.REST
         self.tool_manager = CITIZEN_TOOL_MANAGER
-        self.system_prompt = "You are an citizen in Ukrane, and war is going on b/w Russia and Ukrane." \
-                            "You have a family of some member, During this situation yo have to migrate to other place If event is " \
-                            "held nearby you and intensity of event is high , Migrate decision is depend on averga of the family memeber " \
-                            "and age, gender of the family member" 
 
+        self.memory = STLTMemory(
+            agent=self,
+            llm_model="ollama/granite4:latest",
+            display=False,
+        )
 
-    def update_migration_probability(self):
-        Event_impact = self.intensity_of_event/(1+self.spatical_decay_prmtr * self.distance
-                                                 *(1 + self.temporary_decay_paramter * 
-                                                   self.time_difference))
-        total_event = sum(Event_impact)
-        risk_proneness = 1
-        
-        perceived_behaviour_control = (risk_proneness * total_event + self.memory_retention_prmtr 
-                                       *  self.previous_perceived_risk)
-
-        self.migration_prob = 1/1+ self.growth_rate * perceived_behaviour_control
-
-        for item in self.internal_state:
-            if item.lower().startswith("my migratio probability is"):
-                self.internal_state.remove(item)
-                break
+        # Initial internal state context
         self.internal_state.append(
-            f"My migration probability is {self.migration_prob:.4f}"
+            f"My household ID is {self.household_id}"
         )
-    def step(self):
-        obs = self.generate_obs()
+        self.internal_state.append(
+            f"My risk proneness is {self.risk_proneness:.3f}"
+        )
+
+    def compute_event_impact(self):
+        return self.model.intensity_of_event / (
+            (1 + self.model.spatial_decay * self.distance) *
+            (1 + self.model.temporal_decay * self.time_difference)
+            )
+
+        
+    def update_migration_probability(self):
+
+        event_impact = self.compute_event_impact()
+        total_risk = event_impact
+
+        # 3️⃣ Perceived Behavior Control (memory)
+        perceived_risk = (
+            self.risk_proneness * total_risk
+            + self.model.memory_retention * self.previous_perceived_risk     # memory retension not define
+        )
+
+        self.previous_perceived_risk = perceived_risk
+
+       
+        self.migration_prob = 1 / (
+            1
+            + math.exp(
+                -self.model.growth_rate
+                * (perceived_risk - self.model.baseline_Q)                  # baseline_q not define nd growth rate
+            )
+        )
+
+    def apply_peer_threshold(self):
+
+        neighbors = self.model.grid.get_neighbors(
+            self.pos,
+            moore=True,
+            include_center=False,
+        )
+
+        if not neighbors:
+            return
+
+        migrated_neighbors = sum(
+            1 for n in neighbors if n.state == CitizenState.MIGRATE
+        )
+
+        fraction = migrated_neighbors / len(neighbors)
+
+        if fraction > self.model.threshold_phi:                     
+            self.migration_prob = 1.0
+
+
+    def explain_decision(self):
+        
+
+        prompt = f"""
+        You are a civilian living in a conflict zone.
+
+        Current perceived risk: {self.previous_perceived_risk:.3f}
+        Migration probability: {self.migration_prob:.3f}
+        Current state: {self.state.name}
+
+        Explain briefly why migration probability is high or low.
+        Do not change any decision.
+        """
+
+        observation = self.generate_obs()
+
         plan = self.reasoning.plan(
-            obs=obs,selected_tools=["move_one_step", "migrate"]
+            prompt=prompt,
+            obs=observation,
+            selected_tools=["migrate"]                           # rechck
         )
+        
+        
+
         self.apply_plan(plan)
         
 
+    def step(self):
+
+        # 1–4 Mathematical update
+        self.update_migration_probability()
+
+        # 7 Peer effect
+        self.apply_peer_threshold()
+
+        # LLM explanation only
+        self.explain_decision()
+
+        
 
 
+        
 
-
+        
