@@ -3,12 +3,12 @@ from mesa.model import Model
 from mesa.space import MultiGrid
 
 
-from examples.migration_model.agent import Citizen,CitizenState,CITIZEN_TOOL_MANAGER
+from examples.migration_model.agent import Citizen,CitizenState
 from mesa_llm.reasoning.reasoning import Reasoning
-from mesa_llm.reasoning.react import ReActReasoning
+
 from mesa_llm.recording.record_model import record_model
 
-# @record_model(output_dir="recordings")
+@record_model(output_dir="recordings")
 class MigrationModel(Model):
     def __init__(
         self,
@@ -18,21 +18,22 @@ class MigrationModel(Model):
         reasoning: type[Reasoning],
         llm_model: str,
         vision: int,
-        parallel_stepping=True,
+        parallel_stepping=False,
         seed=None,
     ):
         super().__init__(seed=seed)
 
         self.width = width
         self.height = height
+        self.num_households = 2
         self.intensity_of_event = 0.5
         self.spatial_decay = 0.7
         self.temporal_decay = 0.5
         self.memory_retention = 1
-        self.growth_rate = 0.7
-        self.baseline_Q = 1
-        self.threshold_phi = 0.1
-        self.num_households = 1
+        self.growth_rate = 4.0
+        self.baseline_Q = 0.3
+        self.threshold_phi = 0.2
+        
         self.safe_zone = []        # check 3 paramter 
         self.daily_migrants = 0
         self.total_migrants = 0
@@ -46,11 +47,7 @@ class MigrationModel(Model):
                 1 for a in m.agents
                 if isinstance(a, Citizen) and a.state == CitizenState.REST
             ),
-            "migrate": lambda m: sum(
-                1 for a in m.agents
-                if isinstance(a,citizen) and a.state == CitizenState.MIGRATE
-
-            ),
+            "migrate": lambda m: m.total_migrants,
             "daily_migrants": lambda m: m.daily_migrants,
             "total_migrants": lambda m: m.total_migrants,
             }
@@ -69,7 +66,7 @@ class MigrationModel(Model):
         agents = Citizen.create_agents(
             self,
             n=citizen,
-            reasoning=ReActReasoning,
+            reasoning=reasoning,
             llm_model=llm_model,
             system_prompt=citizen_prompt,
             vision=vision,
@@ -86,7 +83,7 @@ class MigrationModel(Model):
     def step(self):
 
         # Reset daily counter
-        # self.daily_migrants = 0
+        self.daily_migrants = 0
 
         self.agents.shuffle_do("step")
 
@@ -95,15 +92,16 @@ class MigrationModel(Model):
 if __name__ == "__main__":
     
     from examples.migration_model.app import model
+    from mesa_llm.reasoning.react import ReActReasoning
     
-    model = MigrationModel(
-        citizen=10,
-        width=10,
-        height=10,
-        reasoning=ReActReasoning,
-        llm_model="ollama/granite4:latest",
-        vision=2,
-    )
+    # model = MigrationModel(
+    #     citizen=10,
+    #     width=10,
+    #     height=10,
+    #     reasoning=ReActReasoning,
+    #     llm_model="ollama/llama3.1:latest",
+    #     vision=2,
+    # )
                                                     # for testing
     for _ in range(10):
         model.step()

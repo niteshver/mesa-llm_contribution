@@ -8,13 +8,13 @@ from mesa.visualization import (
     make_space_component,
     make_plot_component,
 )
-
-from examples.migration_model.agent import Citizen, CitizenState
+# from agent import Citizen,Citizen_Tool_Manager,CitizenState
+# from model import MigrationModel
+from examples.migration_model.agent import Citizen,CitizenState
 from examples.migration_model.model import MigrationModel
 from mesa_llm.parallel_stepping import enable_automatic_parallel_stepping
+
 from mesa_llm.reasoning.react import ReActReasoning
-
-
 
 warnings.filterwarnings(
     "ignore",
@@ -24,7 +24,7 @@ warnings.filterwarnings(
 
 logging.getLogger("pydantic").setLevel(logging.ERROR)
 
-enable_automatic_parallel_stepping(mode="threading")
+
 load_dotenv()
 
 
@@ -33,8 +33,6 @@ agent_colors = {
     CitizenState.REST: "#2600FE",
     CitizenState.MIGRATE: "#DB2E28FB",
 }
-
-
 
 model_params = {
     "seed": {
@@ -62,9 +60,6 @@ model = MigrationModel(
     seed=model_params["seed"]["value"],
     parallel_stepping=model_params["parallel_stepping"],
 )
-
-
-
 
 def citizen_portrayal(agent):
     if agent is None:
