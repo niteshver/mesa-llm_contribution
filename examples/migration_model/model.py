@@ -5,7 +5,6 @@ from mesa.space import MultiGrid
 
 from examples.migration_model.agent import Citizen,CitizenState
 from mesa_llm.reasoning.reasoning import Reasoning
-
 from mesa_llm.recording.record_model import record_model
 
 @record_model(output_dir="recordings")
@@ -18,14 +17,14 @@ class MigrationModel(Model):
         reasoning: type[Reasoning],
         llm_model: str,
         vision: int,
-        parallel_stepping=False,
+        parallel_stepping=True,
         seed=None,
     ):
         super().__init__(seed=seed)
 
         self.width = width
         self.height = height
-        self.num_households = 2
+        self.num_households = 1
         self.intensity_of_event = 0.5
         self.spatial_decay = 0.7
         self.temporal_decay = 0.5
@@ -34,10 +33,12 @@ class MigrationModel(Model):
         self.baseline_Q = 0.3
         self.threshold_phi = 0.2
         
-        self.safe_zone = []        # check 3 paramter 
+        
+        self.safe_zone = []        
         self.daily_migrants = 0
         self.total_migrants = 0
         self.parallel_stepping = parallel_stepping
+        
 
         self.grid = MultiGrid(width, height, torus=False)
 
@@ -47,9 +48,11 @@ class MigrationModel(Model):
                 1 for a in m.agents
                 if isinstance(a, Citizen) and a.state == CitizenState.REST
             ),
-            "migrate": lambda m: m.total_migrants,
-            "daily_migrants": lambda m: m.daily_migrants,
-            "total_migrants": lambda m: m.total_migrants,
+           
+            "migrate": lambda m: sum(
+                1 for a in m.agents
+                if isinstance(a, Citizen) and a.state == CitizenState.MIGRATE
+            ),
             }
         agent_reporters = {
             "migration_prob": lambda a: getattr(a, "migration_prob", None)
@@ -72,37 +75,22 @@ class MigrationModel(Model):
             vision=vision,
             internal_state=None,
             step_prompt="Assess risk and decide whether to migrate.",
-        )
-
-        x = self.rng.integers(0, width, size=(citizen,))
-        y = self.rng.integers(0, height, size=(citizen,))
-
+            )
+        x = self.rng.integers(0, self.grid.width, size=(citizen))
+        y = self.rng.integers(0, self.grid.height, size=(citizen))
         for a, i, j in zip(agents, x, y):
             self.grid.place_agent(a, (i, j))
 
+
     def step(self):
 
-        # Reset daily counter
-        self.daily_migrants = 0
-
         self.agents.shuffle_do("step")
-
         self.datacollector.collect(self)
+        
 
 if __name__ == "__main__":
-    
-    from examples.migration_model.app import model
-    from mesa_llm.reasoning.react import ReActReasoning
-    
-    # model = MigrationModel(
-    #     citizen=10,
-    #     width=10,
-    #     height=10,
-    #     reasoning=ReActReasoning,
-    #     llm_model="ollama/llama3.1:latest",
-    #     vision=2,
-    # )
-                                                    # for testing
-    for _ in range(10):
-        model.step()
+
+    for _ in range(3):
+        Model.step()
+   
         

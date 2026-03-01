@@ -8,13 +8,13 @@ from mesa.visualization import (
     make_space_component,
     make_plot_component,
 )
-# from agent import Citizen,Citizen_Tool_Manager,CitizenState
-# from model import MigrationModel
+
 from examples.migration_model.agent import Citizen,CitizenState
 from examples.migration_model.model import MigrationModel
 from mesa_llm.parallel_stepping import enable_automatic_parallel_stepping
 
 from mesa_llm.reasoning.react import ReActReasoning
+
 
 warnings.filterwarnings(
     "ignore",
@@ -23,6 +23,7 @@ warnings.filterwarnings(
     message=r".*Pydantic serializer warnings.*",)
 
 logging.getLogger("pydantic").setLevel(logging.ERROR)
+enable_automatic_parallel_stepping(mode="threading")
 
 
 load_dotenv()
@@ -44,7 +45,7 @@ model_params = {
     "width": 10,
     "height": 10,
     "reasoning": ReActReasoning,
-    "llm_model": "ollama/llama3.1",
+    "llm_model": "ollama/llama3.1:latest",
     "vision": 5,
     "parallel_stepping": True,
     
@@ -64,6 +65,7 @@ model = MigrationModel(
 def citizen_portrayal(agent):
     if agent is None:
         return
+    
 
     portrayal = {
         "shape": "circle",
@@ -99,7 +101,7 @@ chart_component = make_plot_component(
 
 if __name__ == "__main__":
     page = SolaraViz(
-        model,   
+        model, 
         components=[
             space_component,
             chart_component,

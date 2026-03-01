@@ -1,168 +1,92 @@
-# 🧠 Conflict-Driven Migration Agent-Based Model (ABM)
+# Conflict-Driven Migration Model
 
-## 📌 Overall Structure
+## Summary
+
+This model simulates how individuals in a conflict-affected environment decide whether to migrate, based on their perceived risk and interactions with neighbors. 
+
+In this version of the model, citizens evaluate perceived risk and their own risk proneness, computing a migration probability at each step. Agents update their state (REST or MIGRATE) based on this probability. The model also uses **LLM-powered reasoning** to provide contextual explanations of agent behavior.
+
+Unlike traditional CA or threshold models, this model combines quantitative risk dynamics with narrative reasoning to produce emergent patterns of migration behavior.
+
+---
+
+## Technical Details
+
+The **Conflict-Driven Migration Model** uses a grid environment to simulate spatial dynamics of individuals:
 
 ### Agent Types
 
--   **Person agents** (individual individuals)\
--   **Household agents** (decision-making unit)
+Each **Citizen** agent has:
 
-------------------------------------------------------------------------
+- `risk_proneness` — how sensitive the agent is to risk
+- `migration_prob` — computed based on perceived risk
+- `state` — either `REST` or `MIGRATE`
 
-## 🔄 Daily Migration Process
+Agents remain in place if resting, or change to a migrating state when migration probability crosses a threshold. In this version, agents do not physically relocate; instead, they change state and the system visualization reflects their status.
 
-Migration occurs in **7 stages** each day:
+LLM reasoning is used for descriptive explanations of each agent’s reasoning at each step, but the underlying state transitions remain deterministic and mathematically driven.
 
-1.  Conflict impact calculation\
-2.  Attitude formation\
-3.  Perceived behavior control\
-4.  Risk-to-probability conversion\
-5.  Household aggregation\
-6.  Bernoulli sampling\
-7.  Peer threshold adjustment
+---
 
-------------------------------------------------------------------------
+### Migration Probability
 
-# 🔴 STEP 1 --- Conflict Impact on Person
+At each step, a citizen computes:
+```
+perceived_risk = own_risk_proneness + (influence_of_neighbors) migration_prob = sigmoid(growth_rate * (perceived_risk - baseline_threshold))
+```
+This calculation creates a **positive feedback effect**:
 
-For each conflict event j affecting person i:
+- Higher perceived risk increases migration probability
+- As more neighbors migrate, perceived risk increases further
 
-## Event Impact Formula
+This dynamic can lead to a rapid cascade of migrating agents.
 
-Impact_i,j(t) = I_j / ((1 + δ·d(i,j)) · (1 + τ·Δt))
+---
 
-Where:
+## LLM-Powered Reasoning
 
--   I_j = intensity of event\
--   d(i,j) = spatial distance between agent and event\
--   Δt = time difference\
--   δ = spatial decay parameter\
--   τ = temporal decay parameter
+Agents can use a reasoning module (typically LLM-based via mesa-llm) to produce human-like justifications for their decisions. The model does *not* allow arbitrary tool actions by the LLM, so reasoning is explanatory rather than autonomous.
 
-👉 Closer and recent events have stronger impact.
+Each agent’s reasoning process consists of:
 
-------------------------------------------------------------------------
+1. Observing its local environment and internal state
+2. Using its memory (short-term or long-term)
+3. Producing a `reasoning` text along with a symbolic `action`
 
-# 🔴 STEP 2 --- Attitude Toward Risk
+In the basic version, actions are explanations only; movement or location updates are not handled by the LLM.
 
-Total accumulated risk from all past events:
+---
 
-A_i(t) = Σ\_{j ∈ E_t} Impact_i,j(t)
+## How to Run
 
-Where:
+If you have cloned the repo into your local machine, ensure you run the following command from the root of the library: ``pip install -e . ``. Then, you will need an api key of an LLM-provider of your choice. You can also use Ollama Model. Once you have obtained the api-key follow the below steps to set it up for this model.
+1) Ensure the dotenv package is installed. If not, run ``pip install python-dotenv``.
+2) In the root folder of the project, create a file named .env.
+3) If you are using openAI's api key, add the following command in the .env file: ``OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx``. If you have the paid version of Gemini, use this line instead: ``GEMINI_API_KEY=your-gemini-api-key-here``(the free ones tend to not work with this model).
+4) Change the  ``api_key`` specification in app.py according to the provider you have chosen.
+5) Similarly change the ``llm_model`` attribute as well in app.py to the name of a model you have access to. Ensure it is in the form of {provider}/{model_name}. For e.g. ``openai/gpt-4o-mini``.
 
--   E_t = all past conflict events until time t
+Once you have set up the api-key in your system, run the following command from this directory:
 
-This corresponds to **Attitude** in the Theory of Planned Behavior.
+```
+    solara run app.py
+```
+## Files
 
-------------------------------------------------------------------------
+* ``model.py``: Core model code.
+* ``agent.py``: Agent classes.
+* ``app.py``: Sets up the interactive visualization.
 
-# 🔴 STEP 3 --- Perceived Behavior Control (PBC)
+## Further Reading
 
-P_i(t) = α_i · A_i(t) + θ · P_i(t−1)
+This model is inspired by the study:
+[Dolmas et al., "Title of Paper", PNAS Nexus (2023)](https://academic.oup.com/pnasnexus/article/3/3/pgae080/7624910?login=false)
 
-Where:
+Key ideas from that research include:
+- Conflict intensity influences migration decisions
+- Migration exhibits threshold/cascade dynamics
+- Spatial proximity and social influence affect migration likelihood
+- This prototype combines those ideas with LLM-assisted decision explanations.
 
--   α_i = risk-proneness (age, gender, etc.)\
--   θ = memory retention parameter\
--   P_i(t−1) = previous perceived risk
-
-This introduces memory effects and demographic heterogeneity.
-
-------------------------------------------------------------------------
-
-# 🔴 STEP 4 --- Convert Risk to Migration Probability
-
-Pr_i(t) = 1 / (1 + e\^(−v(P_i(t) − Q)))
-
-Where:
-
--   v = growth rate (risk sensitivity)\
--   Q = baseline migration control
-
-Output range: 0 to 1
-
-------------------------------------------------------------------------
-
-# 🔴 STEP 5 --- Household Aggregation
-
-Pr_H(t) = (1 / \|H\|) Σ\_{i ∈ H} Pr_i(t)
-
-Where:
-
--   \|H\| = number of household members
-
-------------------------------------------------------------------------
-
-# 🔴 STEP 6 --- Bernoulli Sampling
-
-M_H(t) \~ Bernoulli(Pr_H(t))
-
-If result = 1 → household migrates\
-All members migrate together.
-
-------------------------------------------------------------------------
-
-# 🔴 STEP 7 --- Inter-Household Peer Effect (Threshold Model)
-
-Let:
-
--   N_H = neighboring households\
--   φ = threshold parameter
-
-If:
-
-(Migrated Neighbors / \|N_H\|) \> φ
-
-Then:
-
-Pr_H(t) = 1
-
-This models herd behavior (Granovetter threshold model).
-
-------------------------------------------------------------------------
-
-# 📊 Final Daily Output
-
-Each day, the model records:
-
--   Total refugees\
--   Refugees by age\
--   Refugees by gender\
--   Refugees by region
-
-------------------------------------------------------------------------
-
-# ⚙️ Model Parameters
-
-  Parameter   Meaning
-  ----------- ----------------------
-  δ           Spatial decay
-  τ           Temporal decay
-  θ           Memory decay
-  v           Logistic growth rate
-  Q           Baseline migration
-  φ           Peer threshold
-
-Parameters are calibrated using real border-crossing data.
-
-------------------------------------------------------------------------
-
-# 🏗 Complete Migration Flow (Pseudocode)
-
-    for each day:
-
-        for each person:
-            compute distance-based conflict impact
-            compute total accumulated risk
-            apply demographic sensitivity
-            convert to migration probability
-
-        for each household:
-            average member probabilities
-            apply Bernoulli sampling
-            check neighbor threshold
-            migrate if triggered
-
-        remove migrated households
-        proceed to next day
+### Note:-
+This module is currently a simplified prototype. Advanced features such as custom tools, relocation mechanics, and extended agent interactions can be added in future versions. The current design focuses on validating the core migration dynamics and hybrid LLM reasoning architecture.
