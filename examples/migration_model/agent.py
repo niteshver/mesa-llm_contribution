@@ -1,9 +1,9 @@
-  
 import math
 from enum import Enum
 
 import mesa
-from mesa_llm.llm_agent import LLMAgent 
+
+from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.memory.st_lt_memory import STLTMemory
 
 
@@ -13,14 +13,12 @@ class CitizenState(Enum):
 
 
 class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
-
-
     """
     A citizen living in a conflict-affected region who may remain or migrate.
 
     Summary of rule:
     If migration_probability exceeds a stochastic threshold, migrate.
-    
+
     Attributes:
         risk_proneness: Agent’s sensitivity to perceived conflict risk.
             Exogenous, drawn from U(0,1).
@@ -43,10 +41,8 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
 
         vision: Number of cells in each direction agent can inspect
             for local observation (used for LLM reasoning context).
-            
-            """
-        
 
+    """
 
     def __init__(
         self,
@@ -56,9 +52,7 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
         system_prompt,
         step_prompt,
         vision,
-        internal_state=None, 
-        
-
+        internal_state=None,
     ):
         super().__init__(
             model=model,
@@ -68,7 +62,6 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
             vision=vision,
             step_prompt=step_prompt,
             internal_state=internal_state,
-            
         )
 
         self.state = CitizenState.REST
@@ -79,7 +72,7 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
         self.time_difference = self.random.uniform(0, 1)
         self.previous_perceived_risk = 0.0
         self.migration_prob = None
-    
+
         self.memory = STLTMemory(
             agent=self,
             llm_model="ollama/llama3.1:latest",
@@ -87,57 +80,48 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
         )
 
         # Internal state context
-        self.internal_state.append(
-            f"My household ID is {self.household_id}"
-        )
-        self.internal_state.append(
-            f"My risk proneness is {self.risk_proneness:.3f}"
-        )
+        self.internal_state.append(f"My household ID is {self.household_id}")
+        self.internal_state.append(f"My risk proneness is {self.risk_proneness:.3f}")
         self.internal_state.append(
             f"my current state in the simulation is {self.state}"
         )
         self.internal_state.append(
             f"my current risk_roneness in the simulation is {self.risk_proneness}"
         )
-       
-        
+
     def compute_event_impact(self):
         return self.model.intensity_of_event / (
-            (1 + self.model.spatial_decay * self.distance) *
-            (1 + self.model.temporal_decay * self.time_difference)
-            )
+            (1 + self.model.spatial_decay * self.distance)
+            * (1 + self.model.temporal_decay * self.time_difference)
+        )
 
-        
     def update_migration_probability(self):
-
         event_impact = self.compute_event_impact()
         total_risk = event_impact
 
         # 3️⃣ Perceived Behavior Control (memory)
         perceived_risk = (
             self.risk_proneness * total_risk
-            + self.memory_retention * self.previous_perceived_risk     
+            + self.memory_retention * self.previous_perceived_risk
         )
 
         self.previous_perceived_risk = perceived_risk
 
-       
         self.migration_prob = 1 / (
-            1 + math.exp(
-                - self.model.growth_rate * (perceived_risk - self.model.baseline_Q)
+            1
+            + math.exp(
+                -self.model.growth_rate * (perceived_risk - self.model.baseline_Q)
             )
-            )
+        )
+
     def apply_migration(self):
-        if  self.random.random() <= self.migration_prob  :
+        if self.random.random() <= self.migration_prob:
             self.state = CitizenState.MIGRATE
             self.internal_state.append(
-
                 f"Agent {self.unique_id}: migration_prob={self.migration_prob:.3f}, state={self.state.name}"
-                )
-            
+            )
 
     def explain_decision(self):
-        
         observation = self.generate_obs()
         prompt = f"""
         You are a civilian living in a conflict zone.
@@ -151,26 +135,16 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
         If risk low then stay or wander
         """
 
-
         plan = self.reasoning.plan(
             prompt=prompt,
             obs=observation,
             selected_tools=["move_one_step"],
-            )                         
-        
+        )
+
         self.apply_plan(plan)
-    
+
     def step(self):
         self.compute_event_impact()
         self.update_migration_probability()
         self.apply_migration()
         self.explain_decision()
-        
-
-
-        
-
-
-        
-
-        

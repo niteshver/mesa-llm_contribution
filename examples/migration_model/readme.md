@@ -2,7 +2,7 @@
 
 ## Summary
 
-This model simulates how individuals in a conflict-affected environment decide whether to migrate, based on their perceived risk and interactions with neighbors. 
+This model simulates how individuals in a conflict-affected environment decide whether to migrate, based on their perceived risk and interactions with neighbors.
 
 In this version of the model, citizens evaluate perceived risk and their own risk proneness, computing a migration probability at each step. Agents update their state (REST or MIGRATE) based on this probability. The model also uses **LLM-powered reasoning** to provide contextual explanations of agent behavior.
 

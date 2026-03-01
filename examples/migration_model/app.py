@@ -1,33 +1,30 @@
 import logging
 import warnings
-import solara
-from dotenv import load_dotenv
 
+from dotenv import load_dotenv
 from mesa.visualization import (
     SolaraViz,
-    make_space_component,
     make_plot_component,
+    make_space_component,
 )
 
-from examples.migration_model.agent import Citizen,CitizenState
+from examples.migration_model.agent import Citizen, CitizenState
 from examples.migration_model.model import MigrationModel
 from mesa_llm.parallel_stepping import enable_automatic_parallel_stepping
-
 from mesa_llm.reasoning.react import ReActReasoning
-
 
 warnings.filterwarnings(
     "ignore",
     category=UserWarning,
     module="pydantic.main",
-    message=r".*Pydantic serializer warnings.*",)
+    message=r".*Pydantic serializer warnings.*",
+)
 
 logging.getLogger("pydantic").setLevel(logging.ERROR)
 enable_automatic_parallel_stepping(mode="threading")
 
 
 load_dotenv()
-
 
 
 agent_colors = {
@@ -48,7 +45,6 @@ model_params = {
     "llm_model": "ollama/llama3.1:latest",
     "vision": 5,
     "parallel_stepping": True,
-    
 }
 
 model = MigrationModel(
@@ -62,10 +58,10 @@ model = MigrationModel(
     parallel_stepping=model_params["parallel_stepping"],
 )
 
+
 def citizen_portrayal(agent):
     if agent is None:
         return
-    
 
     portrayal = {
         "shape": "circle",
@@ -98,10 +94,9 @@ chart_component = make_plot_component(
 )
 
 
-
 if __name__ == "__main__":
     page = SolaraViz(
-        model, 
+        model,
         components=[
             space_component,
             chart_component,
