@@ -332,7 +332,7 @@ class TestReWOOReasoning:
             selected_tools=None,
             ttl=7,
         )
-        mock_agent.generate_obs.assert_called_once()
+        mock_agent.agenerate_obs.assert_awaited_once()
 
     def test_plan_uses_provided_obs_without_regeneration(self):
         """Fresh planning should use provided obs and skip generate_obs()."""
