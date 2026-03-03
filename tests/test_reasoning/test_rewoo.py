@@ -47,6 +47,7 @@ class TestReWOOReasoning:
         """Test plan method when there are remaining tool calls."""
         mock_agent = Mock()
         mock_agent.generate_obs = Mock()
+        mock_agent.step_prompt = None
 
         reasoning = ReWOOReasoning(mock_agent)
         reasoning.remaining_tool_calls = 2
@@ -262,6 +263,7 @@ class TestReWOOReasoning:
         """Test aplan method when there are remaining tool calls."""
         mock_agent = Mock()
         mock_agent.generate_obs = Mock()
+        mock_agent.step_prompt = None
 
         reasoning = ReWOOReasoning(mock_agent)
         reasoning.remaining_tool_calls = 1
@@ -273,7 +275,7 @@ class TestReWOOReasoning:
         reasoning.current_plan.tool_calls = [mock_tool_1, mock_tool_2]  # 2 tool calls
         reasoning.current_obs = Observation(step=1, self_state={}, local_state={})
 
-        result = asyncio.run(reasoning.aplan("test prompt", ttl=6))
+        result = asyncio.run(reasoning.aplan(ttl=6))
 
         assert isinstance(result, Plan)
         assert result.ttl == 6
@@ -508,6 +510,7 @@ class TestReWOOReasoning:
         """Test that remaining_tool_calls is properly decremented."""
         mock_agent = Mock()
         mock_agent.generate_obs = Mock()
+        mock_agent.step_prompt = None
 
         reasoning = ReWOOReasoning(mock_agent)
 
@@ -552,6 +555,7 @@ class TestReWOOSignatureConsistency:
     def test_plan_accepts_obs_kwarg(self):
         """plan() must accept obs= keyword without raising TypeError."""
         mock_agent = Mock()
+        mock_agent.step_prompt = None
         mock_agent.generate_obs.return_value = Observation(
             step=1, self_state={}, local_state={}
         )
@@ -567,6 +571,7 @@ class TestReWOOSignatureConsistency:
     def test_plan_accepts_ttl_kwarg(self):
         """plan() must accept ttl= keyword without raising TypeError."""
         mock_agent = Mock()
+        mock_agent.step_prompt = None
         mock_agent.generate_obs.return_value = Observation(
             step=1, self_state={}, local_state={}
         )
@@ -584,6 +589,7 @@ class TestReWOOSignatureConsistency:
         """aplan() must accept obs= keyword without raising TypeError."""
         mock_agent = Mock()
         mock_agent.generate_obs = Mock()
+        mock_agent.step_prompt = None
 
         reasoning = ReWOOReasoning(mock_agent)
         reasoning.remaining_tool_calls = 1
@@ -592,10 +598,7 @@ class TestReWOOSignatureConsistency:
         reasoning.current_obs = Observation(step=1, self_state={}, local_state={})
 
         result = asyncio.run(
-            reasoning.aplan(
-                "test prompt",
-                obs=Observation(step=5, self_state={}, local_state={}),
-            )
+            reasoning.aplan(obs=Observation(step=5, self_state={}, local_state={}))
         )
         assert isinstance(result, Plan)
 
@@ -603,6 +606,7 @@ class TestReWOOSignatureConsistency:
         """aplan() must accept ttl= keyword without raising TypeError."""
         mock_agent = Mock()
         mock_agent.generate_obs = Mock()
+        mock_agent.step_prompt = None
 
         reasoning = ReWOOReasoning(mock_agent)
         reasoning.remaining_tool_calls = 1
@@ -610,6 +614,6 @@ class TestReWOOSignatureConsistency:
         reasoning.current_plan.tool_calls = [Mock()]
         reasoning.current_obs = Observation(step=1, self_state={}, local_state={})
 
-        result = asyncio.run(reasoning.aplan("test prompt", ttl=5))
+        result = asyncio.run(reasoning.aplan(ttl=5))
         assert isinstance(result, Plan)
         assert result.ttl == 5

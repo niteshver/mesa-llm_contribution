@@ -109,13 +109,6 @@ class ReWOOReasoning(Reasoning):
         """
         Plan the next (ReWOO) action based on the current observation and the agent's memory.
         """
-        # If no prompt is provided, use the agent's default step prompt
-        if prompt is None:
-            if self.agent.step_prompt is not None:
-                prompt = self.agent.step_prompt
-            else:
-                raise ValueError("No prompt provided and agent.step_prompt is None.")
-
         # If we have remaining tool calls, skip observation and plan generation
         if self.remaining_tool_calls > 0:
             index_of_tool = (
@@ -126,6 +119,13 @@ class ReWOOReasoning(Reasoning):
             current_plan = self.current_plan
             current_plan.tool_calls = tool_call
             return Plan(llm_plan=current_plan, step=self.current_obs.step, ttl=ttl)
+
+        # If no prompt is provided, use the agent's default step prompt
+        if prompt is None:
+            if self.agent.step_prompt is not None:
+                prompt = self.agent.step_prompt
+            else:
+                raise ValueError("No prompt provided and agent.step_prompt is None.")
 
         if obs is None:
             self.current_obs = self.agent.generate_obs()
@@ -169,13 +169,6 @@ class ReWOOReasoning(Reasoning):
         """
         Asynchronous version of plan() method for parallel planning.
         """
-        # If no prompt is provided, use the agent's default step prompt
-        if prompt is None:
-            if self.agent.step_prompt is not None:
-                prompt = self.agent.step_prompt
-            else:
-                raise ValueError("No prompt provided and agent.step_prompt is None.")
-
         # If we have remaining tool calls, skip observation and plan generation
         if self.remaining_tool_calls > 0:
             index_of_tool = (
@@ -186,6 +179,13 @@ class ReWOOReasoning(Reasoning):
             current_plan = self.current_plan
             current_plan.tool_calls = tool_call
             return Plan(llm_plan=current_plan, step=self.current_obs.step, ttl=ttl)
+
+        # If no prompt is provided, use the agent's default step prompt
+        if prompt is None:
+            if self.agent.step_prompt is not None:
+                prompt = self.agent.step_prompt
+            else:
+                raise ValueError("No prompt provided and agent.step_prompt is None.")
 
         if obs is None:
             agenerate_obs = getattr(self.agent, "agenerate_obs", None)
