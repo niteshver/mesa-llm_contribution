@@ -58,13 +58,13 @@ def move_one_step(agent: "LLMAgent", direction: str) -> str:
 @tool
 def teleport_to_location(
     agent: "LLMAgent",
-    target_coordinates: list[int],
+    target_coordinates: list[int | float],
 ) -> str:
     """
     Instantly moves agents to specific [x, y] coordinates within grid boundaries. Useful for rapid repositioning or spawning mechanics. Validates coordinates are within environment bounds.
 
     Args:
-        target_coordinates: Exactly two integers in the form [x, y] that fall inside the current environment bounds. Example: [3, 7]
+        target_coordinates: Exactly two numeric coordinates in the form [x, y] that fall inside the current environment bounds. Examples: [3, 7] or [3.5, 7.25]
         agent: Provided automatically
 
     Returns:
@@ -81,7 +81,7 @@ def teleport_to_location(
         agent.cell = cell
 
     elif isinstance(agent.model.space, ContinuousSpace):
-        agent.model.space.move_agent(agent.model.space, agent, target_coordinates)
+        agent.model.space.move_agent(agent, target_coordinates)
 
     return f"agent {agent.unique_id} moved to {target_coordinates}."
 

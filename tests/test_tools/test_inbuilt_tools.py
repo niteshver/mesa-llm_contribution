@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from mesa.discrete_space import OrthogonalMooreGrid
-from mesa.space import MultiGrid, SingleGrid
+from mesa.space import ContinuousSpace, MultiGrid, SingleGrid
 
 from mesa_llm.tools.inbuilt_tools import (
     move_one_step,
@@ -120,3 +120,34 @@ def test_move_one_step_invalid_direction():
 
     with pytest.raises(ValueError):
         move_one_step(agent, "north east")
+
+
+def test_teleport_to_location_on_continuousspace():
+    model = DummyModel()
+    model.grid = None
+    model.space = ContinuousSpace(x_max=10.0, y_max=10.0, torus=False)
+
+    agent = DummyAgent(unique_id=5, model=model)
+    model.agents.append(agent)
+    model.space.place_agent(agent, (1.0, 1.0))
+
+    out = teleport_to_location(agent, [5.0, 7.0])
+
+    assert agent.pos == (5.0, 7.0)
+    assert out == "agent 5 moved to (5.0, 7.0)."
+
+
+def test_move_one_step_on_continuousspace():
+    """move_one_step delegates to teleport_to_location, verify it works on ContinuousSpace too."""
+    model = DummyModel()
+    model.grid = None
+    model.space = ContinuousSpace(x_max=10.0, y_max=10.0, torus=False)
+
+    agent = DummyAgent(unique_id=6, model=model)
+    model.agents.append(agent)
+    model.space.place_agent(agent, (2.0, 2.0))
+
+    result = move_one_step(agent, "North")
+
+    assert agent.pos == (2.0, 3.0)
+    assert result == "agent 6 moved to (2.0, 3.0)."

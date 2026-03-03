@@ -169,3 +169,34 @@ class TestSTLTMemory:
 
         # Verify last observation is tracked
         assert memory.last_observation == obs2
+
+    def test_get_prompt_ready_returns_str(self, mock_agent):
+        """Test that get_prompt_ready returns a str, not a list (issue #116)."""
+        memory = STLTMemory(agent=mock_agent, llm_model="provider/test_model")
+
+        memory.short_term_memory.append(
+            MemoryEntry(content={"observation": "Test obs"}, step=1, agent=mock_agent)
+        )
+        memory.long_term_memory = "Long-term summary"
+
+        result = memory.get_prompt_ready()
+
+        assert isinstance(result, str), (
+            f"get_prompt_ready() must return str, got {type(result).__name__}"
+        )
+        assert "Short term memory:" in result
+        assert "Long term memory:" in result
+        assert "Test obs" in result
+        assert "Long-term summary" in result
+
+    def test_get_prompt_ready_returns_str_when_empty(self, mock_agent):
+        """Test that get_prompt_ready returns str even with empty memory."""
+        memory = STLTMemory(agent=mock_agent, llm_model="provider/test_model")
+
+        result = memory.get_prompt_ready()
+
+        assert isinstance(result, str), (
+            f"get_prompt_ready() must return str, got {type(result).__name__}"
+        )
+        assert "Short term memory:" in result
+        assert "Long term memory:" in result
