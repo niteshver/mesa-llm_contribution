@@ -193,10 +193,10 @@ class STLTMemory(Memory):
             return "\n".join(lines)
 
     def get_prompt_ready(self) -> str:
-        return [
-            f"Short term memory:\n {self.format_short_term()}",
-            f"Long term memory: \n{self.format_long_term()}",
-        ]
+        return (
+            f"Short term memory:\n {self.format_short_term()}\n\n"
+            f"Long term memory: \n{self.format_long_term()}"
+        )
 
     def get_communication_history(self) -> str:
         """

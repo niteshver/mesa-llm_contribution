@@ -47,7 +47,7 @@ class TestReActReasoning:
         """Test get_react_prompt with observation."""
         mock_agent = Mock()
         mock_agent.memory = Mock()
-        mock_agent.memory.get_prompt_ready.return_value = ["memory1", "memory2"]
+        mock_agent.memory.get_prompt_ready.return_value = "memory1\n\nmemory2"
         mock_agent.memory.get_communication_history.return_value = "communication"
 
         reasoning = ReActReasoning(mock_agent)
@@ -63,7 +63,7 @@ class TestReActReasoning:
         """Test get_react_prompt without observation."""
         mock_agent = Mock()
         mock_agent.memory = Mock()
-        mock_agent.memory.get_prompt_ready.return_value = ["memory1"]
+        mock_agent.memory.get_prompt_ready.return_value = "memory1"
         mock_agent.memory.get_communication_history.return_value = ""
 
         reasoning = ReActReasoning(mock_agent)
@@ -77,7 +77,7 @@ class TestReActReasoning:
         """Test plan method with custom prompt."""
         mock_agent = Mock()
         mock_agent.memory = Mock()
-        mock_agent.memory.get_prompt_ready.return_value = ["memory1"]
+        mock_agent.memory.get_prompt_ready.return_value = "memory1"
         mock_agent.memory.get_communication_history.return_value = ""
         mock_agent.memory.add_to_memory = Mock()
         mock_agent.llm = Mock()
@@ -101,14 +101,18 @@ class TestReActReasoning:
         result = reasoning.plan(obs=obs, prompt="Custom prompt")
 
         assert result == mock_plan
-        reasoning.execute_tool_call.assert_called_once_with("custom_action", None)
+        reasoning.execute_tool_call.assert_called_once_with(
+            "custom_action",
+            selected_tools=None,
+            ttl=1,
+        )
 
     def test_plan_with_selected_tools(self):
         """Test plan method with selected tools."""
         mock_agent = Mock()
         mock_agent.step_prompt = "Default step prompt"
         mock_agent.memory = Mock()
-        mock_agent.memory.get_prompt_ready.return_value = ["memory1"]
+        mock_agent.memory.get_prompt_ready.return_value = "memory1"
         mock_agent.memory.get_communication_history.return_value = ""
         mock_agent.memory.add_to_memory = Mock()
         mock_agent.llm = Mock()
@@ -130,12 +134,14 @@ class TestReActReasoning:
 
         obs = Observation(step=1, self_state={}, local_state={})
         selected_tools = ["tool1", "tool2"]
-        result = reasoning.plan(obs=obs, selected_tools=selected_tools)
+        result = reasoning.plan(obs=obs, ttl=3, selected_tools=selected_tools)
 
         assert result == mock_plan
         mock_agent.tool_manager.get_all_tools_schema.assert_called_with(selected_tools)
         reasoning.execute_tool_call.assert_called_once_with(
-            "test_action", selected_tools
+            "test_action",
+            selected_tools=selected_tools,
+            ttl=3,
         )
 
     def test_plan_no_prompt_error(self):
@@ -143,7 +149,7 @@ class TestReActReasoning:
         mock_agent = Mock()
         mock_agent.step_prompt = None
         mock_agent.memory = Mock()
-        mock_agent.memory.get_prompt_ready.return_value = ["memory1"]
+        mock_agent.memory.get_prompt_ready.return_value = "memory1"
         mock_agent.memory.get_communication_history.return_value = ""
 
         reasoning = ReActReasoning(mock_agent)
@@ -159,7 +165,7 @@ class TestReActReasoning:
         mock_agent = Mock()
         mock_agent.step_prompt = "Default step prompt"
         mock_agent.memory = Mock()
-        mock_agent.memory.get_prompt_ready.return_value = ["memory1"]
+        mock_agent.memory.get_prompt_ready.return_value = "memory1"
         mock_agent.memory.get_communication_history.return_value = ""
         mock_agent.memory.add_to_memory = Mock()
         mock_agent.memory.aadd_to_memory = AsyncMock()
@@ -183,18 +189,22 @@ class TestReActReasoning:
         obs = Observation(step=1, self_state={}, local_state={})
 
         # Test async execution
-        result = asyncio.run(reasoning.aplan(obs=obs))
+        result = asyncio.run(reasoning.aplan(obs=obs, ttl=4))
 
         assert result == mock_plan
         mock_agent.llm.agenerate.assert_called_once()
-        reasoning.aexecute_tool_call.assert_called_once_with("async_action", None)
+        reasoning.aexecute_tool_call.assert_called_once_with(
+            "async_action",
+            selected_tools=None,
+            ttl=4,
+        )
 
     def test_aplan_no_prompt_error(self):
         """Test aplan method raises error when no prompt is provided."""
         mock_agent = Mock()
         mock_agent.step_prompt = None
         mock_agent.memory = Mock()
-        mock_agent.memory.get_prompt_ready.return_value = ["memory1"]
+        mock_agent.memory.get_prompt_ready.return_value = "memory1"
         mock_agent.memory.get_communication_history.return_value = ""
 
         reasoning = ReActReasoning(mock_agent)

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from mesa.discrete_space import (
     OrthogonalMooreGrid,
@@ -15,8 +15,8 @@ from mesa_llm.tools.tool_decorator import tool
 if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent
 
-# Mapping directions to (dx, dy)
-direction_map = {
+# Mapping directions to (dx, dy) for Cartesian-style spaces.
+direction_map_xy = {
     "North": (0, 1),
     "South": (0, -1),
     "East": (1, 0),
@@ -26,6 +26,38 @@ direction_map = {
     "SouthEast": (1, -1),
     "SouthWest": (-1, -1),
 }
+
+
+# Mapping directions to (drow, dcol) for mesa.discrete_space orthogonal grids.
+direction_map_row_col = {
+    "North": (-1, 0),
+    "South": (1, 0),
+    "East": (0, 1),
+    "West": (0, -1),
+    "NorthEast": (-1, 1),
+    "NorthWest": (-1, -1),
+    "SouthEast": (1, 1),
+    "SouthWest": (1, -1),
+}
+
+
+def _get_agent_position(agent: "LLMAgent") -> Any:
+    """Return the agent position across Mesa space APIs."""
+    cell = getattr(agent, "cell", None)
+    if cell is not None and getattr(cell, "coordinate", None) is not None:
+        return cell.coordinate
+
+    pos = getattr(agent, "pos", None)
+    if pos is not None:
+        return pos
+
+    position = getattr(agent, "position", None)
+    if position is not None:
+        return position
+
+    raise ValueError(
+        "Could not infer agent position from `cell`, `pos`, or `position`."
+    )
 
 
 @tool
@@ -42,13 +74,20 @@ def move_one_step(agent: "LLMAgent", direction: str) -> str:
         Returns:
             A string confirming the result of the movement attempt.
     """
-    if direction not in direction_map:
+    if direction not in direction_map_xy:
         raise ValueError(
             f"Invalid direction '{direction}'."
-            f"Must be one of {list(direction_map.keys())}"
+            f"Must be one of {list(direction_map_xy.keys())}"
         )
-    dx, dy = direction_map[direction]
-    x, y = agent.pos
+
+    grid = getattr(agent.model, "grid", None)
+    if isinstance(grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid):
+        dx, dy = direction_map_row_col[direction]
+    else:
+        dx, dy = direction_map_xy[direction]
+
+    x, y = _get_agent_position(agent)
+
     new_pos = (x + dx, y + dy)
     target_coordinates = tuple(new_pos)
     teleport_to_location(agent, target_coordinates)
@@ -58,13 +97,13 @@ def move_one_step(agent: "LLMAgent", direction: str) -> str:
 @tool
 def teleport_to_location(
     agent: "LLMAgent",
-    target_coordinates: list[int],
+    target_coordinates: list[int | float],
 ) -> str:
     """
     Instantly moves agents to specific [x, y] coordinates within grid boundaries. Useful for rapid repositioning or spawning mechanics. Validates coordinates are within environment bounds.
 
     Args:
-        target_coordinates: Exactly two integers in the form [x, y] that fall inside the current environment bounds. Example: [3, 7]
+        target_coordinates: Exactly two numeric coordinates in the form [x, y] that fall inside the current environment bounds. Examples: [3, 7] or [3.5, 7.25]
         agent: Provided automatically
 
     Returns:
@@ -81,7 +120,7 @@ def teleport_to_location(
         agent.cell = cell
 
     elif isinstance(agent.model.space, ContinuousSpace):
-        agent.model.space.move_agent(agent.model.space, agent, target_coordinates)
+        agent.model.space.move_agent(agent, target_coordinates)
 
     return f"agent {agent.unique_id} moved to {target_coordinates}."
 

@@ -87,9 +87,9 @@ class CoTReasoning(Reasoning):
 
     def plan(
         self,
-        obs: Observation,
-        ttl: int = 1,
         prompt: str | None = None,
+        obs: Observation | None = None,
+        ttl: int = 1,
         selected_tools: list[str] | None = None,
     ) -> Plan:
         """
@@ -102,12 +102,17 @@ class CoTReasoning(Reasoning):
             else:
                 raise ValueError("No prompt provided and agent.step_prompt is None.")
 
+        if obs is None:
+            obs = self.agent.generate_obs()
+
         step = obs.step + 1
         llm = self.agent.llm
         obs_str = str(obs)
 
         # Add current observation to memory (for record)
-        self.agent.memory.add_to_memory(type="Observation", content=obs_str)
+        self.agent.memory.add_to_memory(
+            type="Observation", content={"content": obs_str}
+        )
         system_prompt = self.get_cot_system_prompt(obs)
 
         llm.system_prompt = system_prompt
@@ -118,7 +123,9 @@ class CoTReasoning(Reasoning):
         )
 
         chaining_message = rsp.choices[0].message.content
-        self.agent.memory.add_to_memory(type="Plan", content=chaining_message)
+        self.agent.memory.add_to_memory(
+            type="Plan", content={"content": chaining_message}
+        )
 
         # Pass plan content to agent for display
         if hasattr(self.agent, "_step_display_data"):
@@ -131,27 +138,33 @@ class CoTReasoning(Reasoning):
             tool_choice="required",
         )
         response_message = rsp.choices[0].message
-        cot_plan = Plan(step=step, llm_plan=response_message, ttl=1)
+        cot_plan = Plan(step=step, llm_plan=response_message, ttl=ttl)
 
-        self.agent.memory.add_to_memory(type="Plan-Execution", content=str(cot_plan))
+        self.agent.memory.add_to_memory(
+            type="Plan-Execution", content={"content": str(cot_plan)}
+        )
 
         return cot_plan
 
     async def aplan(
         self,
-        obs: Observation,
-        ttl: int = 1,
         prompt: str | None = None,
+        obs: Observation | None = None,
+        ttl: int = 1,
         selected_tools: list[str] | None = None,
     ) -> Plan:
         """
         Asynchronous version of plan() method for parallel planning.
         """
+        # If no prompt is provided, use the agent's default step prompt
         if prompt is None:
             if self.agent.step_prompt is not None:
                 prompt = self.agent.step_prompt
             else:
                 raise ValueError("No prompt provided and agent.step_prompt is None.")
+
+        if obs is None:
+            obs = await self.agent.agenerate_obs()
 
         step = obs.step + 1
         llm = self.agent.llm
@@ -168,7 +181,9 @@ class CoTReasoning(Reasoning):
         )
 
         chaining_message = rsp.choices[0].message.content
-        await self.agent.memory.aadd_to_memory(type="Plan", content=chaining_message)
+        await self.agent.memory.aadd_to_memory(
+            type="Plan", content={"content": chaining_message}
+        )
 
         # Pass plan content to agent for display
         if hasattr(self.agent, "_step_display_data"):
@@ -181,10 +196,10 @@ class CoTReasoning(Reasoning):
             tool_choice="required",
         )
         response_message = rsp.choices[0].message
-        cot_plan = Plan(step=step, llm_plan=response_message, ttl=1)
+        cot_plan = Plan(step=step, llm_plan=response_message, ttl=ttl)
 
         await self.agent.memory.aadd_to_memory(
-            type="Plan-Execution", content=str(cot_plan)
+            type="Plan-Execution", content={"content": str(cot_plan)}
         )
 
         return cot_plan
