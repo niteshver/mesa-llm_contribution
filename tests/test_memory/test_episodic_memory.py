@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from mesa_llm.memory.episodic_memory import EpisodicMemory
+from mesa_llm.memory.episodic_memory import EpisodicMemory, normalize_dict_values
 from mesa_llm.memory.memory import MemoryEntry
 
 
@@ -24,6 +24,25 @@ def mock_agent():
     agent.model.steps = 100
     agent.model.events = []
     return agent
+
+
+def test_normalize_dict_floats_logic():
+    """
+    Function to check whether the values are normalised properly.
+        - Hardcoded dict values are used currently to ensure that the normalization logic works.
+        - Checks both cases, ie when the range = 0 and when its not 0.
+    """
+    d = {0: 10, 1: 20, 2: 30}
+    norm = normalize_dict_values(d, 0, 1)
+    assert norm[0] == 0.0
+    assert norm[1] == 0.5
+    assert norm[2] == 1.0
+
+    # Checks normalized value when range is 0
+    d_tie = {0: 5, 1: 5}
+    norm_tie = normalize_dict_values(d_tie, 0, 1)
+    assert norm_tie[0] == 0.5
+    assert norm_tie[1] == 0.5
 
 
 class TestEpisodicMemory:
@@ -109,45 +128,37 @@ class TestEpisodicMemory:
         # Check that the system prompt was set on the llm object
         assert memory.llm.system_prompt == memory.system_prompt
 
-    def test_retrieve_top_k_entries(self, mock_agent):
-        """Test the sorting logic for retrieving entries (importance - recency_penalty)."""
+    def test_retrieve_top_k_importance_beats_recency(self, mock_agent):
+        """
+        Function Verify that a highly important but older memory can outrank
+        a recent but low-importance memory after normalization.
+        """
+
         memory = EpisodicMemory(agent=mock_agent, llm_model="provider/test_model")
-        # Set current step
+
         mock_agent.model.steps = 100
 
-        # Manually add entries to bypass grading and control scores
-        # score = importance - (current_step - entry_step)
-
-        # score = 5 - (100 - 98) = 3
+        # Very important but old
         entry_a = MemoryEntry(
-            content={"importance": 5, "id": "A"}, step=98, agent=mock_agent
+            content={"message": {"importance": 5, "info": "The meaning of life"}},
+            step=80,
+            agent=mock_agent,
         )
-        # score = 1 - (100 - 99) = 0
-        entry_b = MemoryEntry(
-            content={"importance": 1, "id": "B"}, step=99, agent=mock_agent
-        )
-        # score = 4 - (100 - 90) = -6
+
+        # Very recent but unimportant
         entry_c = MemoryEntry(
-            content={"importance": 4, "id": "C"}, step=90, agent=mock_agent
-        )
-        # score = 4 - (100 - 95) = -1
-        entry_d = MemoryEntry(
-            content={"importance": 4, "id": "D"}, step=95, agent=mock_agent
+            content={"message": {"importance": 1, "info": "I saw a bird"}},
+            step=99,
+            agent=mock_agent,
         )
 
-        memory.memory_entries.extend([entry_a, entry_b, entry_c, entry_d])
+        memory.memory_entries.extend([entry_a, entry_c])
 
-        # Retrieve top 3 (k=3)
-        top_entries = memory.retrieve_top_k_entries(3)
+        top_entries = memory.retrieve_top_k_entries(1)
 
-        # Expected order: A (3), B (0), D (-1)
-        assert len(top_entries) == 3
-        assert top_entries[0].content["id"] == "A"
-        assert top_entries[1].content["id"] == "B"
-        assert top_entries[2].content["id"] == "D"
-
-        # Entry C (score -6) should be omitted
-        assert "C" not in [e.content["id"] for e in top_entries]
+        # The highly important memory should win
+        assert len(top_entries) == 1
+        assert top_entries[0] == entry_a
 
     def test_process_step_pre_step(self, mock_agent):
         """
@@ -290,3 +301,13 @@ class TestEpisodicMemory:
         assert (
             "No message here" not in history
         )  # step 2  does not have message field thus it must not be present in the returned string
+
+    def test_retrieve_empty_memory(self, mock_agent):
+        """
+        Function to verify empty list is returned when retrieval of memory is empty
+        """
+        memory = EpisodicMemory(agent=mock_agent, llm_model="provider/test_model")
+
+        result = memory.retrieve_top_k_entries(3)
+
+        assert result == []
