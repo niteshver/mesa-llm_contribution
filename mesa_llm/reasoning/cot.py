@@ -14,8 +14,8 @@ class CoTReasoning(Reasoning):
         - **agent** (LLMAgent reference)
 
     Methods:
-        - **plan(prompt, obs=None, ttl=1, selected_tools=None)** → *Plan* - Generate synchronous plan with CoT reasoning
-        - **async aplan(prompt, obs=None, ttl=1, selected_tools=None)** → *Plan* - Generate asynchronous plan with CoT reasoning
+        - **plan(obs, ttl=1, prompt=None, selected_tools=None)** → *Plan* - Generate synchronous plan with CoT reasoning
+        - **async aplan(obs, ttl=1, prompt=None, selected_tools=None)** → *Plan* - Generate asynchronous plan with CoT reasoning
 
     Reasoning Format:
         Thought 1: [Initial reasoning based on observation]
@@ -169,6 +169,10 @@ class CoTReasoning(Reasoning):
         step = obs.step + 1
         llm = self.agent.llm
 
+        obs_str = str(obs)
+        await self.agent.memory.aadd_to_memory(
+            type="Observation", content={"content": obs_str}
+        )
         system_prompt = self.get_cot_system_prompt(obs)
         llm.system_prompt = system_prompt
 

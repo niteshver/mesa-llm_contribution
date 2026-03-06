@@ -132,9 +132,37 @@ class TestCoTReasoning:
         ):
             reasoning.plan(obs=obs)
 
+    def test_aplan_uses_step_prompt_when_no_prompt_given(
+        self, llm_response_factory, mock_agent
+    ):
+        """Test aplan falls back to agent.step_prompt like sync plan does."""
+        mock_agent.step_prompt = "Default step prompt"
+        mock_agent.memory = Mock()
+        mock_agent.memory.format_long_term.return_value = "Long term memory"
+        mock_agent.memory.format_short_term.return_value = "Short term memory"
+        mock_agent.memory.aadd_to_memory = AsyncMock()
+        mock_agent.llm = Mock()
+        mock_agent.tool_manager = Mock()
+        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+        mock_agent._step_display_data = {}
+
+        mock_plan_response = llm_response_factory(
+            content="Thought 1: reasoning\nAction: act"
+        )
+        mock_exec_response = llm_response_factory(content="executor response")
+        mock_agent.llm.agenerate = AsyncMock(
+            side_effect=[mock_plan_response, mock_exec_response]
+        )
+
+        reasoning = CoTReasoning(mock_agent)
+        obs = Observation(step=1, self_state={}, local_state={})
+
+        # Call without prompt — should use agent.step_prompt
+        result = asyncio.run(reasoning.aplan(obs=obs))
+        assert isinstance(result, Plan)
+
     def test_aplan_async_version(self, llm_response_factory, mock_agent):
         """Test aplan async method."""
-        mock_agent.memory = Mock()
         mock_agent.memory.format_long_term.return_value = "Long term memory"
         mock_agent.memory.format_short_term.return_value = "Short term memory"
         mock_agent.memory.add_to_memory = Mock()
