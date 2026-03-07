@@ -1,6 +1,7 @@
 from mesa.datacollection import DataCollector
 from mesa.model import Model
 from mesa.space import MultiGrid
+import mesa_geo as mg                # use this instead of multigrid
 from rich import print
 import random
 

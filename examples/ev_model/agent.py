@@ -2,7 +2,7 @@ import math
 from enum import Enum
 import random
 import mesa 
-
+from mesa.space import MultiGrid
 from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.memory.st_lt_memory import STLTMemory
 from mesa_llm.tools.tool_manager import ToolManager
@@ -11,35 +11,10 @@ HOUSEHOLDAGENTTOOL_MANAGER = ToolManager()
 CHARGERINGAGENTTOOL_MANAGER = ToolManager()
 
 class AGENTSTATE(Enum):
-    ICE_HOLDER = 1
-    EV_HOLDER = 2
-    EV_NONHOLDER = 3
-
-
-
-
-class GovernmentAgent(LLMAgent):
-    def __init__(
-            self,
-            model,
-            reasoning,
-            llm_model,
-            system_prompt,
-            step_prompt,
-    ):
-        super().__init__(
-            model=model,
-            reasoning=reasoning,
-            llm_model=llm_model,
-            system_prompt=system_prompt,
-            step_prompt=step_prompt
-        )
-        self.carbon_tax = random.uniform(0,0.5)
-        self.subsidy_amount = random.uniform(100,8000)
-        self.risk_decay = random.uniform(0.01,0.1)
+    NONE_HOLDER = "none_holder"
+    ICE_HOLDER = "ice_holder"
+    EV_HOLDER = "ev_holder"
     
-        subsidy = self.model.base_subsidy + self.income_targeting
-        fuel_prices = self.model.base_fuel_prices + self.model.carbon_tax
 
 
 class ChargingStatinAgent(LLMAgent,mesa.discrete_space.cell_agent):
@@ -51,9 +26,11 @@ class ChargingStatinAgent(LLMAgent,mesa.discrete_space.cell_agent):
             system_prompt,
             step_prompt,
             capacity = 1,      # later check
-            price_per_kwh=10,
+            price_per_kwh=5,
             charging_speed=1, 
-            utilization_rate=1   # later check
+            utilization_rate=1,
+            infracture_score=None 
+                # later check
     ):
         
         super().__init__(
@@ -66,8 +43,27 @@ class ChargingStatinAgent(LLMAgent,mesa.discrete_space.cell_agent):
         self.capacity = capacity
         self.price_per_kwh = price_per_kwh
         self.charging_speed = charging_speed
-        self.utilization_rate = self.utilization_rate
-        self.distance = random.random()
+        self.utilization_rate = utilization_rate
+        self.infracture_score = infracture_score
+
+        self.memory = STLTMemory(
+            agent=self,
+            display=True,
+            llm_model=llm_model)
+        
+
+    def calculate_infracture_score(self):
+        charger_station = self.model.get_neighbours(
+            tuple(self.pos), moore=True, include_center=False, radius=self.vision
+        )
+
+        distance_to_nearest_charger = min((HouseholdAgent,charger_station))
+
+        congestion_penality = self.utilization_rate/self.capacity
+        self.infracture_score = 1 / (1 + distance_to_nearest_charger + congestion_penality)
+        self.internal_state.append(
+            f"My Infracture score is {self.infracture_score}"
+        )
     
     def charging_cost(self):
         cost_of_charging = (self.price_per_kwh *
@@ -89,10 +85,11 @@ class HouseholdAgent(LLMAgent, mesa.discrete_space.CellAgent):
         self.income = random.uniform(10000, 100000)
         self.env_awareness = random.random()
         self.annual_mileage = random.uniform(5000, 20000)
+        self.annual_charge = 10
 
         # Technology state
-        self.car_type = "ICE"
-        self.state = AGENTSTATE.ICE_HOLDER
+        
+        self.state = AGENTSTATE.NONE_HOLDER
 
         self.total_cost_ev = 0
         self.total_cost_ice = 0
@@ -115,7 +112,7 @@ class HouseholdAgent(LLMAgent, mesa.discrete_space.CellAgent):
     def calculate_to_ice(self):
         fuel_cost = (
             self.model.fuel_price
-            * self.annual_mileage
+            * self.annual_mileage 
             / self.model.fuel_efficiency
         )
 

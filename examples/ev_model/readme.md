@@ -38,13 +38,7 @@ U-EV > E_ICE
 - price_per_kwh
 - queue_lenght
 - utilization_rate
-### 3. GovermentAgent
-
-- Subsidy_amount
-- Caron_tax
-- fule_price
-- charger_budget
-It create reaction of people 
+ 
 
 ### 4. custom_Tools
 #### 1. HouseHoLDAgent Tools
