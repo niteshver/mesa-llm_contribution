@@ -7,8 +7,8 @@ from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.memory.st_lt_memory import STLTMemory
 from mesa_llm.tools.tool_manager import ToolManager
 
-
 Citizen_tool_manager = ToolManager()
+
 
 class CitizenState(Enum):
     REST = 1
@@ -82,7 +82,6 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
             display=True,
         )
 
-
         # Internal state context
         self.internal_state.append(f"My household ID is {self.household_id}")
         self.internal_state.append(f"My risk proneness is {self.risk_proneness:.3f}")
@@ -94,8 +93,7 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
         )
 
         self.tool_manager = Citizen_tool_manager
-       
-        
+
     def compute_event_impact(self):
         return self.model.intensity_of_event / (
             (1 + self.model.spatial_decay * self.distance)
@@ -148,10 +146,8 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
         plan = self.reasoning.plan(
             prompt=prompt,
             obs=observation,
-
-            selected_tools=["move_one_step","move_to_safe_zone","speak_to"],
-            )                         
-        
+            selected_tools=["move_one_step", "move_to_safe_zone", "speak_to"],
+        )
 
         self.apply_plan(plan)
 
@@ -160,6 +156,4 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
         self.update_migration_probability()
         self.apply_migration()
 
-
         self.explain_decision()
-

@@ -1,14 +1,13 @@
 import logging
 import warnings
 
-import solara
-
-from matplotlib.patches import Rectangle
 from dotenv import load_dotenv
+from matplotlib.patches import Rectangle
 from mesa.visualization import (
     SolaraViz,
     make_plot_component,
-    make_space_component,)
+    make_space_component,
+)
 
 from examples.migration_model.agent import Citizen, CitizenState
 from examples.migration_model.model import MigrationModel
@@ -85,11 +84,12 @@ def post_process(ax):
     ax.get_figure().set_size_inches(10, 10)
 
     # draw safe zone
-    safe_cells = [(9,9),(9,8),(8,9)]
+    safe_cells = [(9, 9), (9, 8), (8, 9)]
     for x, y in safe_cells:
         ax.add_patch(
-
-            Rectangle((x-0.5, y-0.5), 1, 1, fill=False, edgecolor="green", linewidth=2)
+            Rectangle(
+                (x - 0.5, y - 0.5), 1, 1, fill=False, edgecolor="green", linewidth=2
+            )
         )
 
 
@@ -100,13 +100,11 @@ space_component = make_space_component(
 )
 
 chart_component = make_plot_component(
-
     {
         "rest": agent_colors[CitizenState.REST],
         "migrate": agent_colors[CitizenState.MIGRATE],
         "total_migrants": "green",
     }
-
 )
 
 
