@@ -5,7 +5,10 @@ import mesa
 
 from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.memory.st_lt_memory import STLTMemory
+from mesa_llm.tools.tool_manager import ToolManager
 
+
+Citizen_tool_manager = ToolManager()
 
 class CitizenState(Enum):
     REST = 1
@@ -78,6 +81,7 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
             llm_model="ollama/llama3.1:latest",
             display=True,
         )
+        
 
         # Internal state context
         self.internal_state.append(f"My household ID is {self.household_id}")
@@ -89,6 +93,12 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
             f"my current risk_roneness in the simulation is {self.risk_proneness}"
         )
 
+<<<<<<< HEAD
+=======
+        self.tool_manager = Citizen_tool_manager
+       
+        
+>>>>>>> 5a7aec2 (add finalize model)
     def compute_event_impact(self):
         return self.model.intensity_of_event / (
             (1 + self.model.spatial_decay * self.distance)
@@ -130,21 +140,34 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
         Migration probability: {self.migration_prob:.3f}
         Current state: {self.state.name}
 
-        Explain briefly why migration probability is high or low.
-        If high risk then move toward safe zone ,
-        If risk low then stay or wander
+        Rules:
+        •⁠  ⁠If your state is MIGRATE, move toward the safe zone using move_to_safe_zone.
+        •⁠  ⁠If your state is REST, do NOT move to the safe zone. You may stay or wander.
+        - You can use speak_to tool also.
+
+        Explain briefly why the migration probability is high or low.
         """
 
         plan = self.reasoning.plan(
             prompt=prompt,
             obs=observation,
+<<<<<<< HEAD
             selected_tools=["move_one_step"],
         )
 
+=======
+            selected_tools=["move_one_step","move_to_safe_zone","speak_to"],
+            )                         
+        
+>>>>>>> 5a7aec2 (add finalize model)
         self.apply_plan(plan)
 
     def step(self):
         self.compute_event_impact()
         self.update_migration_probability()
         self.apply_migration()
+<<<<<<< HEAD
         self.explain_decision()
+=======
+        self.explain_decision()
+>>>>>>> 5a7aec2 (add finalize model)

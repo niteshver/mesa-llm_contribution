@@ -1,11 +1,21 @@
 import logging
 import warnings
+<<<<<<< HEAD
+=======
+import solara
+from dotenv import load_dotenv
+from matplotlib.patches import Rectangle
+>>>>>>> 5a7aec2 (add finalize model)
 
 from dotenv import load_dotenv
 from mesa.visualization import (
     SolaraViz,
     make_plot_component,
+<<<<<<< HEAD
     make_space_component,
+=======
+    
+>>>>>>> 5a7aec2 (add finalize model)
 )
 
 from examples.migration_model.agent import Citizen, CitizenState
@@ -28,8 +38,8 @@ load_dotenv()
 
 
 agent_colors = {
-    CitizenState.REST: "#2600FE",
-    CitizenState.MIGRATE: "#DB2E28FB",
+    CitizenState.REST: "#648FFF",
+    CitizenState.MIGRATE: "#FE6100",
 }
 
 model_params = {
@@ -82,6 +92,14 @@ def post_process(ax):
     ax.set_yticks([])
     ax.get_figure().set_size_inches(10, 10)
 
+    # draw safe zone
+    safe_cells = [(9,9),(9,8),(8,9)]
+    for x, y in safe_cells:
+        ax.add_patch(
+
+            Rectangle((x-0.5, y-0.5), 1, 1, fill=False, edgecolor="green", linewidth=2)
+        )
+
 
 space_component = make_space_component(
     citizen_portrayal,
@@ -90,7 +108,13 @@ space_component = make_space_component(
 )
 
 chart_component = make_plot_component(
-    {state.name.lower(): agent_colors[state] for state in CitizenState}
+
+    {
+        "rest": agent_colors[CitizenState.REST],
+        "migrate": agent_colors[CitizenState.MIGRATE],
+        "total_migrants": "green",
+    }
+
 )
 
 

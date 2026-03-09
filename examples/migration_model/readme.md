@@ -76,6 +76,7 @@ Once you have set up the api-key in your system, run the following command from 
 * ``model.py``: Core model code.
 * ``agent.py``: Agent classes.
 * ``app.py``: Sets up the interactive visualization.
+* ``tools.py``: Tools for the llm to use.
 
 ## Further Reading
 
