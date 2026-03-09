@@ -81,7 +81,7 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
             llm_model="ollama/llama3.1:latest",
             display=True,
         )
-        
+
 
         # Internal state context
         self.internal_state.append(f"My household ID is {self.household_id}")
@@ -96,8 +96,8 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
 <<<<<<< HEAD
 =======
         self.tool_manager = Citizen_tool_manager
-       
-        
+
+
 >>>>>>> 5a7aec2 (add finalize model)
     def compute_event_impact(self):
         return self.model.intensity_of_event / (
@@ -157,8 +157,8 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
 
 =======
             selected_tools=["move_one_step","move_to_safe_zone","speak_to"],
-            )                         
-        
+            )
+
 >>>>>>> 5a7aec2 (add finalize model)
         self.apply_plan(plan)
 

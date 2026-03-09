@@ -14,7 +14,7 @@ from mesa.visualization import (
 <<<<<<< HEAD
     make_space_component,
 =======
-    
+
 >>>>>>> 5a7aec2 (add finalize model)
 )
 

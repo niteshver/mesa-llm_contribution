@@ -1,10 +1,8 @@
-import random
 from typing import TYPE_CHECKING
 
 from examples.migration_model.agent import (
-    Citizen,
-    CitizenState,
     Citizen_tool_manager,
+    CitizenState,
 )
 from mesa_llm.tools.tool_decorator import tool
 
@@ -13,6 +11,7 @@ if TYPE_CHECKING:
 
 if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent
+
 
 @tool(tool_manager=Citizen_tool_manager)
 def move_to_safe_zone(agent: "LLMAgent") -> str:

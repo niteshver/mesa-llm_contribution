@@ -2,10 +2,10 @@ from mesa.datacollection import DataCollector
 from mesa.model import Model
 from mesa.space import MultiGrid
 
-
-from examples.migration_model.agent import Citizen,CitizenState
+from examples.migration_model.agent import Citizen, CitizenState
 from mesa_llm.reasoning.reasoning import Reasoning
 from mesa_llm.recording.record_model import record_model
+
 
 @record_model(output_dir="recordings")
 class MigrationModel(Model):
@@ -32,34 +32,36 @@ class MigrationModel(Model):
         self.growth_rate = 3.0
         self.baseline_Q = 0.4
         self.threshold_phi = 0.2
-        
-        
-        self.safe_zone = [(9,9),(9,8),(8,9)]
-        self.safe_zone_population = []        
+
+        self.safe_zone = [(9, 9), (9, 8), (8, 9)]
+        self.safe_zone_population = []
         self.daily_migrants = 0
         self.total_migrants = 0
         self.parallel_stepping = parallel_stepping
-        
 
         self.grid = MultiGrid(width, height, torus=False)
 
         # ---------------- Data Collection ----------------
         model_reporters = {
             "rest": lambda m: sum(
-                1 for a in m.agents
+                1
+                for a in m.agents
                 if isinstance(a, Citizen) and a.state == CitizenState.REST
             ),
             "migrate": lambda m: sum(
-                1 for a in m.agents
+                1
+                for a in m.agents
                 if isinstance(a, Citizen) and a.state == CitizenState.MIGRATE
             ),
-            "total_migrants": lambda m: m.total_migrants
+            "total_migrants": lambda m: m.total_migrants,
         }
         agent_reporters = {
             "migration_prob": lambda a: getattr(a, "migration_prob", None)
         }
 
-        self.datacollector = DataCollector(model_reporters=model_reporters,agent_reporters=agent_reporters)
+        self.datacollector = DataCollector(
+            model_reporters=model_reporters, agent_reporters=agent_reporters
+        )
 
         # ---------------- Create Agents ----------------
         citizen_prompt = (
@@ -76,18 +78,16 @@ class MigrationModel(Model):
             vision=vision,
             internal_state=None,
             step_prompt="Assess risk and decide whether to migrate.",
-            )
+        )
         x = self.rng.integers(0, self.grid.width, size=(citizen))
         y = self.rng.integers(0, self.grid.height, size=(citizen))
         for a, i, j in zip(agents, x, y):
             self.grid.place_agent(a, (i, j))
 
-
     def step(self):
 
         self.agents.shuffle_do("step")
         self.datacollector.collect(self)
-        
 
 
 if __name__ == "__main__":
@@ -99,5 +99,3 @@ if __name__ == "__main__":
 
     for _ in range(5):
         model.step()
-   
-        
