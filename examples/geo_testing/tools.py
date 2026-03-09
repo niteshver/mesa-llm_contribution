@@ -1,13 +1,8 @@
+from shapely.geometry import Point
 from typing import TYPE_CHECKING
 
-from examples.migration_model.agent import (
-    Citizen_tool_manager,
-    CitizenState,
-)
+from examples.geo_testing.agent import Citizen_tool_manager, CitizenState
 from mesa_llm.tools.tool_decorator import tool
-
-if TYPE_CHECKING:
-    from mesa_llm.llm_agent import LLMAgent
 
 if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent
@@ -17,24 +12,23 @@ if TYPE_CHECKING:
 def move_to_safe_zone(agent: "LLMAgent") -> str:
     """
     Move a migrating citizen one step toward the safe zone.
-
-    Args:
-        agent: The agent performing the action.
-
-    Returns:
-        Description of the movement result.
     """
 
     if agent.state != CitizenState.MIGRATE:
         return "Agent is not migrating."
 
-    safe_x, safe_y = agent.model.safe_zone[0]
-    x, y = agent.pos
+    # current location
+    x = agent.geometry.x
+    y = agent.geometry.y
 
-    new_x = x + (1 if safe_x > x else -1 if safe_x < x else 0)
-    new_y = y + (1 if safe_y > y else -1 if safe_y < y else 0)
+    # safe zone location
+    safe_x, safe_y = agent.model.safe_zone
 
-    new_pos = (new_x, new_y)
-    agent.model.grid.move_agent(agent, new_pos)
+    step_size = 0.5
 
-    return f"Agent {agent.unique_id} moved toward safe zone {new_pos}"
+    new_x = x + step_size if safe_x > x else x - step_size
+    new_y = y + step_size if safe_y > y else y - step_size
+
+    agent.geometry = Point(new_x, new_y)
+
+    return f"Agent moved toward safe zone ({safe_x},{safe_y})"

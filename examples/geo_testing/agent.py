@@ -2,10 +2,14 @@ import math
 from enum import Enum
 
 import mesa
-
+import mesa_geo as mg
+from shapely.geometry import point
 from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.memory.st_lt_memory import STLTMemory
 from mesa_llm.tools.tool_manager import ToolManager
+from mesa_geo.geoagent import GeoAgent
+
+
 
 Citizen_tool_manager = ToolManager()
 
@@ -15,9 +19,10 @@ class CitizenState(Enum):
     MIGRATE = 2
 
 
-class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
+
+class Citizen(mg.GeoAgent,LLMAgent):
     """
-    A citizen living in a conflict-affected region who may remain or migrate.
+     A citizen living in a conflict-affected region who may remain or migrate.
 
     Summary of rule:
     If migration_probability exceeds a stochastic threshold, migrate.
@@ -44,20 +49,29 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
 
         vision: Number of cells in each direction agent can inspect
             for local observation (used for LLM reasoning context).
-
     """
 
+
+      
     def __init__(
-        self,
-        model,
-        reasoning,
-        llm_model,
-        system_prompt,
-        step_prompt,
-        vision,
-        internal_state=None,
+    self,
+    model,
+    geometry,
+    crs,
+    reasoning,
+    llm_model,
+    system_prompt,
+    step_prompt,
+    vision,
+    internal_state=None,
+
     ):
-        super().__init__(
+        
+
+        GeoAgent.__init__(self, model, geometry, crs)
+
+        LLMAgent.__init__(
+            self,
             model=model,
             reasoning=reasoning,
             llm_model=llm_model,
@@ -66,7 +80,7 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
             step_prompt=step_prompt,
             internal_state=internal_state,
         )
-
+  
         self.state = CitizenState.REST
         self.household_id = self.random.randint(0, int(self.model.num_households) - 1)
         self.risk_proneness = self.random.random()
