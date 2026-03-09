@@ -1,22 +1,14 @@
 import logging
 import warnings
-<<<<<<< HEAD
-=======
-import solara
-from dotenv import load_dotenv
-from matplotlib.patches import Rectangle
->>>>>>> 5a7aec2 (add finalize model)
 
+import solara
+
+from matplotlib.patches import Rectangle
 from dotenv import load_dotenv
 from mesa.visualization import (
     SolaraViz,
     make_plot_component,
-<<<<<<< HEAD
-    make_space_component,
-=======
-
->>>>>>> 5a7aec2 (add finalize model)
-)
+    make_space_component,)
 
 from examples.migration_model.agent import Citizen, CitizenState
 from examples.migration_model.model import MigrationModel

@@ -93,12 +93,9 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
             f"my current risk_roneness in the simulation is {self.risk_proneness}"
         )
 
-<<<<<<< HEAD
-=======
         self.tool_manager = Citizen_tool_manager
-
-
->>>>>>> 5a7aec2 (add finalize model)
+       
+        
     def compute_event_impact(self):
         return self.model.intensity_of_event / (
             (1 + self.model.spatial_decay * self.distance)
@@ -151,23 +148,18 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
         plan = self.reasoning.plan(
             prompt=prompt,
             obs=observation,
-<<<<<<< HEAD
-            selected_tools=["move_one_step"],
-        )
 
-=======
             selected_tools=["move_one_step","move_to_safe_zone","speak_to"],
-            )
+            )                         
+        
 
->>>>>>> 5a7aec2 (add finalize model)
         self.apply_plan(plan)
 
     def step(self):
         self.compute_event_impact()
         self.update_migration_probability()
         self.apply_migration()
-<<<<<<< HEAD
+
+
         self.explain_decision()
-=======
-        self.explain_decision()
->>>>>>> 5a7aec2 (add finalize model)
+
