@@ -1,11 +1,14 @@
 from mesa.datacollection import DataCollector
 from mesa.model import Model
+
 from shapely.geometry import Point
 
 from mesa_geo import GeoSpace
 from mesa_geo.geoagent import AgentCreator
-import geopandas as gpd
 
+import geopandas as gpd
+import mesa
+from mesa.model import Model
 from examples.geo_testing.agent import Citizen, CitizenState
 from mesa_llm.reasoning.reasoning import Reasoning
 from mesa_llm.recording.record_model import record_model
@@ -19,51 +22,57 @@ class MigrationModel(Model):
         citizen: int,
         reasoning: type[Reasoning],
         llm_model: str,
+        internal_state,
         vision: int,
         seed=None,
     ):
         super().__init__(seed=seed)
 
-        # -------- Load GeoJSON --------
+        # ---------------- Load GeoJSON ----------------
+
         self.gdf = gpd.read_file("data/TorontoNeighbourhoods.geojson")
 
-# ensure CRS exists
         if self.gdf.crs is None:
             self.gdf = self.gdf.set_crs("EPSG:4326")
 
-        self.space = GeoSpace(crs=self.gdf.crs)
-        print(self.space.crs)
+        # ---------------- GeoSpace ----------------
 
-        # -------- Model parameters --------
-        self.num_households = 1
+        self.space = GeoSpace(crs=self.gdf.crs)
+
+        # ---------------- Model parameters ----------------
+
         self.intensity_of_event = 1.5
         self.spatial_decay = 0.5
         self.temporal_decay = 0.3
         self.growth_rate = 3.0
         self.baseline_Q = 0.4
+
         self.total_migrants = 0
 
-        # -------- Data collection --------
+        # ---------------- Data collection ----------------
+
         self.datacollector = DataCollector(
             model_reporters={
                 "rest": lambda m: sum(
-                    1 for a in m.agents
+                    1
+                    for a in m.agents
                     if isinstance(a, Citizen) and a.state == CitizenState.REST
                 ),
                 "migrate": lambda m: sum(
-                    1 for a in m.agents
+                    1
+                    for a in m.agents
                     if isinstance(a, Citizen) and a.state == CitizenState.MIGRATE
                 ),
+                "total_migrants": lambda m: m.total_migrants,
             },
-
             agent_reporters={
                 "state": "state",
                 "migration_prob": "migration_prob",
-                "risk": "previous_perceived_risk"
-            }
+            },
         )
 
-        # -------- Citizen creator --------
+        # ---------------- Citizen creator ----------------
+
         citizen_prompt = (
             "You are a citizen in a conflict region. "
             "Decide whether to migrate based on perceived risk."
@@ -83,11 +92,9 @@ class MigrationModel(Model):
             },
         )
 
-       
+        # ---------------- Spawn citizens ----------------
 
-        # -------- Spawn citizens --------
         for i in range(citizen):
-            
 
             region = self.gdf.sample(1).iloc[0]
 
@@ -99,13 +106,10 @@ class MigrationModel(Model):
 
             self.space.add_agents(agent)
 
+    # ---------------- Step ----------------
+
     def step(self):
 
         self.agents_by_type[Citizen].shuffle_do("step")
 
         self.datacollector.collect(self)
-
-if __name__ == "__main__":
-
-    for _ in range(3):
-        Model.step(3)
