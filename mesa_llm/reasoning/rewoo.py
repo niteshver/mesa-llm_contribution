@@ -200,7 +200,7 @@ class ReWOOReasoning(Reasoning):
             tool_choice="none",
         )
 
-        self.agent.memory.add_to_memory(
+        await self.agent.memory.aadd_to_memory(
             type="plan", content={"content": rsp.choices[0].message.content}
         )
 

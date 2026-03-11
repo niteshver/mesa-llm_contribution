@@ -536,6 +536,39 @@ class TestReWOOReasoning:
         assert reasoning.remaining_tool_calls == 0
         assert result3.llm_plan.tool_calls == [mock_tool_3]  # index 2 (3-1=2)
 
+    def test_aplan_uses_async_memory_method(self, llm_response_factory, mock_agent):
+        mock_agent.step_prompt = "Default step prompt"
+        mock_agent.agenerate_obs = AsyncMock(
+            return_value=Observation(step=1, self_state={}, local_state={})
+        )
+        mock_agent.memory = Mock()
+        mock_agent.memory.format_long_term.return_value = ""
+        mock_agent.memory.format_short_term.return_value = ""
+        mock_agent.memory.aadd_to_memory = AsyncMock()
+        mock_agent.memory.add_to_memory = Mock()
+        mock_agent.llm = Mock()
+        mock_agent.tool_manager = Mock()
+        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+
+        mock_plan_response = llm_response_factory(content="Async plan content")
+        mock_exec_response = llm_response_factory(
+            content="Exec",
+            tool_calls=[_tool_call("call_1")],
+        )
+        mock_agent.llm.agenerate = AsyncMock(
+            side_effect=[mock_plan_response, mock_exec_response]
+        )
+
+        reasoning = ReWOOReasoning(mock_agent)
+        reasoning.aexecute_tool_call = AsyncMock(
+            return_value=Plan(step=1, llm_plan=mock_exec_response.choices[0].message)
+        )
+
+        asyncio.run(reasoning.aplan())
+
+        mock_agent.memory.aadd_to_memory.assert_awaited_once()
+        mock_agent.memory.add_to_memory.assert_not_called()
+
 
 class TestReWOOSignatureConsistency:
     def test_plan_accepts_obs_kwarg(self):
