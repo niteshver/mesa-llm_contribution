@@ -15,10 +15,7 @@ class CitizenState(Enum):
     MIGRATE = 2
 
 
-class Citizen(GeoAgent, LLMAgent):
-    """
-    Citizen agent that decides whether to migrate based on perceived risk.
-    """
+class Citizen(GeoAgent,LLMAgent):
 
     def __init__(
         self,
@@ -32,10 +29,9 @@ class Citizen(GeoAgent, LLMAgent):
         vision,
         internal_state=None,
     ):
-        # Initialize GeoAgent
+
         GeoAgent.__init__(self, model, geometry, crs)
 
-        # Initialize LLM agent
         LLMAgent.__init__(
             self,
             model=model,
@@ -44,7 +40,7 @@ class Citizen(GeoAgent, LLMAgent):
             system_prompt=system_prompt,
             vision=vision,
             step_prompt=step_prompt,
-            internal_state=internal_state,
+            internal_state=internal_state or [],
         )
 
         self.state = CitizenState.REST
@@ -52,72 +48,94 @@ class Citizen(GeoAgent, LLMAgent):
         self.risk_proneness = self.random.random()
         self.memory_retention = self.random.random()
 
-        self.previous_perceived_risk = 0
+        self.previous_risk = 0
         self.migration_prob = 0
 
         self.memory = STLTMemory(
             agent=self,
             llm_model="ollama/llama3.1:latest",
-            display=False,
         )
 
         self.tool_manager = Citizen_tool_manager
 
-    # ---------------- Risk calculation ----------------
+    # ------------------------------
 
-    def compute_event_impact(self):
+    def distance_to_war(self):
 
-        return self.model.intensity_of_event
+        dists = [
+            self.geometry.distance(zone)
+            for zone in self.model.war_zones
+        ]
+
+        return min(dists)
+
+    # ------------------------------
+
+    def compute_risk(self):
+
+        war_dist = self.distance_to_war()
+
+        conflict_risk = math.exp(-war_dist)
+
+        migrating_neighbors = sum(
+            1 for a in self.model.agents
+            if isinstance(a, Citizen) and a.state == CitizenState.MIGRATE
+        )
+
+        social_risk = migrating_neighbors / max(1, len(self.model.agents))
+
+        perceived_risk = (
+            self.risk_proneness * conflict_risk
+            + self.memory_retention * self.previous_risk
+            + 0.3 * social_risk
+        )
+
+        self.previous_risk = perceived_risk
+
+        return perceived_risk
+
+    # ------------------------------
 
     def update_migration_probability(self):
 
-        event_impact = self.compute_event_impact()
+        risk = self.compute_risk()
 
-        perceived_risk = (
-            self.risk_proneness * event_impact
-            + self.memory_retention * self.previous_perceived_risk
-        )
+        self.migration_prob = 1 / (1 + math.exp(-4 * (risk - 0.3)))
 
-        self.previous_perceived_risk = perceived_risk
-
-        self.migration_prob = 1 / (
-            1 + math.exp(-self.model.growth_rate * (perceived_risk - self.model.baseline_Q))
-        )
-
-    # ---------------- Migration decision ----------------
+    # ------------------------------
 
     def apply_migration(self):
 
-        if self.random.random() <= self.migration_prob:
-
+        if self.random.random() < self.migration_prob:
             self.state = CitizenState.MIGRATE
-            self.model.total_migrants += 1
 
-    # ---------------- LLM reasoning ----------------
+    # ------------------------------
 
     def explain_decision(self):
 
         observation = self.generate_obs()
 
         prompt = f"""
-        You are a civilian living in a conflict zone.
+You are a civilian living in a conflict region.
 
-        Current perceived risk: {self.previous_perceived_risk:.3f}
-        Migration probability: {self.migration_prob:.3f}
-        Current state: {self.state.name}
+Risk level: {self.previous_risk}
+Migration probability: {self.migration_prob}
+Current state: {self.state}
 
-        Explain briefly why migration probability is high or low.
-        """
+If risk is high migrate toward the safe zone.
+Otherwise wander locally.
+Explain briefly.
+"""
 
         plan = self.reasoning.plan(
             prompt=prompt,
             obs=observation,
-            selected_tools=["move-one_step","move_to_safe_zone"]
+            selected_tools=["move_to_safe_zone", "wander"],
         )
 
         self.apply_plan(plan)
 
-    # ---------------- Agent step ----------------
+    # ------------------------------
 
     def step(self):
 

@@ -1,45 +1,56 @@
 import logging
 import warnings
 
-from dotenv import load_dotenv
-
-from mesa.visualization import SolaraViz, make_plot_component
-from mesa_geo.visualization import make_geospace_component
+from mesa.visualization import (
+    SolaraViz,
+    make_plot_component,
+    make_space_component,
+)
 
 from examples.geo_testing.agent import Citizen, CitizenState
 from examples.geo_testing.model import MigrationModel
-
-from mesa_llm.parallel_stepping import enable_automatic_parallel_stepping
 from mesa_llm.reasoning.react import ReActReasoning
 
-warnings.filterwarnings(
-    "ignore",
-    category=UserWarning,
-    module="pydantic.main",
-)
 
-logging.getLogger("pydantic").setLevel(logging.ERROR)
+warnings.filterwarnings("ignore")
 
-enable_automatic_parallel_stepping(mode="threading")
 
-load_dotenv()
-
-# ---------------- Agent Colors ----------------
 agent_colors = {
     CitizenState.REST: "#648FFF",
     CitizenState.MIGRATE: "#FE6100",
 }
 
-# ---------------- Model Params ----------------
+
+def agent_portrayal(agent):
+
+    if isinstance(agent, Citizen):
+
+        return {
+            "shape": "circle",
+            "filled": True,
+            "color": agent_colors[agent.state],
+            "size": 6,
+        }
+
+
 model_params = {
-    "seed": 42,
-    "citizen": 20,
+    "citizen": 40,
     "reasoning": ReActReasoning,
     "llm_model": "ollama/llama3.1:latest",
     "vision": 5,
+    "seed": 42,
 }
 
-# ---------------- Initialize Model ----------------
+
+space_component = make_space_component(agent_portrayal)
+
+chart_component = make_plot_component(
+    {
+        "migrating": "red",
+    }
+)
+
+
 model = MigrationModel(
     citizen=model_params["citizen"],
     reasoning=model_params["reasoning"],
@@ -48,43 +59,13 @@ model = MigrationModel(
     seed=model_params["seed"],
 )
 
-# ---------------- Agent Portrayal ----------------
-def citizen_portrayal(agent):
 
-    portrayal = {}
-
-    if isinstance(agent, Citizen):
-
-        portrayal["color"] = agent_colors[agent.state]
-        portrayal["radius"] = 3
-
-    return portrayal
-
-# ---------------- Map Component ----------------
-space_component = make_geospace_component(
-    citizen_portrayal,
-    zoom=2,
+page = SolaraViz(
+    model,
+    components=[
+        space_component,
+        chart_component,
+    ],
+    model_params=model_params,
+    name="Conflict-Driven Migration Model",
 )
-
-# ---------------- Charts ----------------
-chart_component = make_plot_component(
-    {
-        "rest": agent_colors[CitizenState.REST],
-        "migrate": agent_colors[CitizenState.MIGRATE],
-    }
-)
-
-# ---------------- Run UI ----------------
-if __name__ == "__main__":
-
-    page = SolaraViz(
-        model,
-        components=[
-            space_component,
-            chart_component,
-        ],
-        model_params=model_params,
-        name="Conflict-Driven Migration Model",
-    )
-
-    page

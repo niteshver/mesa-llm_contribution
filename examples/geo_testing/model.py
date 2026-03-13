@@ -1,112 +1,79 @@
-from mesa.datacollection import DataCollector
-from mesa.model import Model
-
 from shapely.geometry import Point
+import geopandas as gpd
+
+from mesa.model import Model
+from mesa.datacollection import DataCollector
 
 from mesa_geo import GeoSpace
 from mesa_geo.geoagent import AgentCreator
 
-import geopandas as gpd
-import mesa
-from mesa.model import Model
 from examples.geo_testing.agent import Citizen, CitizenState
-from mesa_llm.reasoning.reasoning import Reasoning
-from mesa_llm.recording.record_model import record_model
 
 
-@record_model(output_dir="recordings")
 class MigrationModel(Model):
 
     def __init__(
         self,
-        citizen: int,
-        reasoning: type[Reasoning],
-        llm_model: str,
-        internal_state,
-        vision: int,
+        citizen,
+        reasoning,
+        llm_model,
+        vision,
         seed=None,
     ):
         super().__init__(seed=seed)
 
-        # ---------------- Load GeoJSON ----------------
+        
 
-        self.gdf = gpd.read_file("data/TorontoNeighbourhoods.geojson")
+        gdf = gpd.read_file("data/TorontoNeighbourhoods.geojson")
 
-        if self.gdf.crs is None:
-            self.gdf = self.gdf.set_crs("EPSG:4326")
+        print("Dataset CRS:", gdf.crs)
+        if gdf.crs is None:
+            gdf = gdf.set_crs("EPSG:4326")
 
-        # ---------------- GeoSpace ----------------
+        self.space = GeoSpace(crs=gdf.crs)
 
-        self.space = GeoSpace(crs=self.gdf.crs)
+        self.safe_zone = Point(-79.38, 43.65)
 
-        # ---------------- Model parameters ----------------
+        self.war_zones = [
+            Point(-79.4, 43.7).buffer(0.02),
+            Point(-79.35, 43.66).buffer(0.02),
+        ]
 
-        self.intensity_of_event = 1.5
-        self.spatial_decay = 0.5
-        self.temporal_decay = 0.3
-        self.growth_rate = 3.0
-        self.baseline_Q = 0.4
-
-        self.total_migrants = 0
-
-        # ---------------- Data collection ----------------
-
-        self.datacollector = DataCollector(
-            model_reporters={
-                "rest": lambda m: sum(
-                    1
-                    for a in m.agents
-                    if isinstance(a, Citizen) and a.state == CitizenState.REST
-                ),
-                "migrate": lambda m: sum(
-                    1
-                    for a in m.agents
-                    if isinstance(a, Citizen) and a.state == CitizenState.MIGRATE
-                ),
-                "total_migrants": lambda m: m.total_migrants,
-            },
-            agent_reporters={
-                "state": "state",
-                "migration_prob": "migration_prob",
-            },
-        )
-
-        # ---------------- Citizen creator ----------------
-
-        citizen_prompt = (
-            "You are a citizen in a conflict region. "
-            "Decide whether to migrate based on perceived risk."
-        )
+        citizen_prompt = "You are a civilian deciding whether to flee war."
 
         creator = AgentCreator(
             Citizen,
             model=self,
-            crs=self.space.crs,
+            crs=gdf.crs,
             agent_kwargs={
                 "reasoning": reasoning,
                 "llm_model": llm_model,
                 "system_prompt": citizen_prompt,
                 "vision": vision,
-                "internal_state": None,
-                "step_prompt": "Assess risk and decide whether to migrate.",
+                "internal_state": [],
+                "step_prompt": "Assess risk and decide migration.",
             },
         )
 
-        # ---------------- Spawn citizens ----------------
+        for _ in range(citizen):
 
-        for i in range(citizen):
+            region = gdf.sample(1).iloc[0]
 
-            region = self.gdf.sample(1).iloc[0]
+            centroid = region.geometry.centroid
 
-            x, y = region.geometry.centroid.coords.xy
-
-            point = Point(x[0], y[0])
-
-            agent = creator.create_agent(point)
+            agent = creator.create_agent(centroid)
 
             self.space.add_agents(agent)
 
-    # ---------------- Step ----------------
+        self.datacollector = DataCollector(
+            model_reporters={
+                "migrating": lambda m: sum(
+                    1 for a in m.agents
+                    if isinstance(a, Citizen)
+                    and a.state == CitizenState.MIGRATE
+                )
+            }
+        )
 
     def step(self):
 

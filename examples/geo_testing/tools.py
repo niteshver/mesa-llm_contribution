@@ -1,34 +1,63 @@
 from shapely.geometry import Point
-from typing import TYPE_CHECKING
-
-from examples.geo_testing.agent import Citizen_tool_manager, CitizenState
 from mesa_llm.tools.tool_decorator import tool
 
-if TYPE_CHECKING:
-    from mesa_llm.llm_agent import LLMAgent
+from examples.geo_testing.agent import (
+    Citizen_tool_manager,
+    CitizenState,
+)
 
 
 @tool(tool_manager=Citizen_tool_manager)
-def move_to_safe_zone(agent: "LLMAgent") -> str:
+def move_to_safe_zone(agent):
     """
-    Move a migrating citizen one step toward the safe zone.
+    Move the citizen agent one step toward the safe zone.
+
+    Args:
+        agent: The citizen agent performing the action.
+
+    Returns:
+        Description of the movement.
     """
 
     if agent.state != CitizenState.MIGRATE:
-        return "Agent is not migrating."
+        return "Agent not migrating."
 
-    # current location
-    x = agent.geometry.x
-    y = agent.geometry.y
+    safe = agent.model.safe_zone
 
-    # safe zone location
-    safe_x, safe_y = agent.model.safe_zone
+    x, y = agent.geometry.x, agent.geometry.y
 
-    step_size = 0.5
+    dx = safe.x - x
+    dy = safe.y - y
 
-    new_x = x + step_size if safe_x > x else x - step_size
-    new_y = y + step_size if safe_y > y else y - step_size
+    step = 0.01
+
+    new_x = x + step * (dx / (abs(dx) + 1e-6))
+    new_y = y + step * (dy / (abs(dy) + 1e-6))
 
     agent.geometry = Point(new_x, new_y)
 
-    return f"Agent moved toward safe zone ({safe_x},{safe_y})"
+    return "Agent moved toward safe zone."
+
+
+@tool(tool_manager=Citizen_tool_manager)
+def wander(agent):
+    """
+    Move the citizen randomly in the environment.
+
+    Args:
+        agent: The citizen agent performing the action.
+
+    Returns:
+        Description of the movement.
+    """
+
+    x, y = agent.geometry.x, agent.geometry.y
+
+    step = 0.01
+
+    new_x = x + agent.random.uniform(-step, step)
+    new_y = y + agent.random.uniform(-step, step)
+
+    agent.geometry = Point(new_x, new_y)
+
+    return "Agent wandered randomly."
