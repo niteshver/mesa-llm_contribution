@@ -77,9 +77,15 @@ def charge_ev(agent):
     if station.utilization_rate >= station.capacity:
         return "Charging station full."
 
+    # occupy charger
+    station.utilization_rate += 1
+
     energy = agent.battery_capacity - agent.battery_level
     cost = energy * station.price_per_kwh
 
     agent.battery_level = agent.battery_capacity
+
+    # release charger
+    station.utilization_rate -= 1
 
     return f"EV charged. Cost {cost}"
