@@ -363,4 +363,3 @@ class HouseholdAgent(LLMAgent, mesa.discrete_space.CellAgent):
         self.compute_utility()
         self.drive()
         self.make_decision()
-        
