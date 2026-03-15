@@ -10,8 +10,6 @@ from mesa_llm.tools.tool_manager import ToolManager
 
 
 HOUSEHOLD_TOOL_MANAGER = ToolManager()
-CHARGER_TOOL_MANAGER = ToolManager()
-
 
 class AgentState(Enum):
     NONE_HOLDER = "none_holder"
@@ -98,8 +96,7 @@ class ChargingStationAgent(LLMAgent, mesa.discrete_space.CellAgent):
             display=False,
         )
 
-        self.tool_manager = CHARGER_TOOL_MANAGER
-
+        
 
     def charging_cost(self, kwh):
 
@@ -304,7 +301,7 @@ class HouseholdAgent(LLMAgent, mesa.discrete_space.CellAgent):
         environment = self.env_awareness
         risk = self.risk_aversion
 
-        # EV utility
+       
         self.utility_ev = (
             self.model.alpha_financial * financial
             + self.model.beta_social * social
@@ -313,10 +310,11 @@ class HouseholdAgent(LLMAgent, mesa.discrete_space.CellAgent):
             - self.model.theta_risk * risk
         )
 
-        # ICE utility
         self.utility_ice = (
-            self.model.alpha_financial * (-financial)
-            + self.model.theta_risk * risk
+            - self.model.alpha_financial * financial
+            - self.model.beta_social * social
+            - self.model.gamma_infrastructure * infrastructure
+            - self.model.delta_environment * environment
         )
 
  
@@ -344,41 +342,30 @@ class HouseholdAgent(LLMAgent, mesa.discrete_space.CellAgent):
         observation = self.generate_obs()
 
         prompt = f"""
-        You are a household agent deciding which vehicle to own.
+        You are a household deciding transportation actions.
 
-        Vehicle Options
-        ---------------
-        1. Electric Vehicle (EV)
-        2. Internal Combustion Engine vehicle (ICE)
+        Current vehicle state: {self.state}
+        EV utility: {self.utility_ev:.3f}
+        ICE utility: {self.utility_ice:.3f}
+        Battery level: {self.battery_level:.2f}
 
-        Current Evaluation
-        ------------------
-        EV utility score: {self.utility_ev:.3f}
-        ICE utility score: {self.utility_ice:.3f}
+        Decision rules:
+        1. If you do not own a vehicle → choose buy_ev or buy_ice
+        2. If you own an EV and battery < 30% → use charge_ev
+        3. If you own an ICE vehicle → do nothing
 
-        EV total cost: {self.total_cost_ev:.2f}
-        ICE total cost: {self.total_cost_ice:.2f}
-
-        Environmental awareness level: {self.env_awareness:.2f}
-
-        Decision Rule
-        -------------
-        - If EV utility is greater than ICE utility, adopt an EV.
-        - If ICE utility is greater than EV utility, choose an ICE vehicle.
-
-        Action
-        ------
-        Select the appropriate tool to perform the action:
-        - buy_ev → purchase an electric vehicle
-        - buy_ice → purchase an internal combustion vehicle
-        - charge_ev → charge the EV if the battery is low (only applicable if you already own an EV)
-        Choose the action that best matches the decision.
+        Available tools:
+        - buy_ev
+        - buy_ice
+        - charge_ev
         """
+
+         
 
         plan = self.reasoning.plan(
             prompt=prompt,
             obs=observation,
-            selected_tools=["purchase_vehicle",'charge_ev'],
+            selected_tools=["buy_ev","buy_ice","charge_ev"],
         )
 
         self.apply_plan(plan)
@@ -388,11 +375,8 @@ class HouseholdAgent(LLMAgent, mesa.discrete_space.CellAgent):
     def step(self):
 
         self.calculate_ice_cost()
-
         self.calculate_ev_cost()
-
         self.compute_utility()
-
         self.make_decision()
 
 

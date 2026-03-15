@@ -31,8 +31,8 @@ class EVModel(Model):
         self.theta_risk = 0.2
 
         # Costs
-        self.purchase_price_ev = 40000
-        self.purchase_price_ice = 25000
+        self.purchase_price_ev = 3000
+        self.purchase_price_ice = 2800
 
         self.maintenance_ev = 300
         self.maintenance_ice = 800
@@ -43,7 +43,7 @@ class EVModel(Model):
         self.fuel_efficiency = 15
         self.ev_efficiency = 5
 
-        self.subsidy_amount = 5000
+        self.subsidy_amount = 50
 
         self.charging_stations = []
 
@@ -98,11 +98,11 @@ class EVModel(Model):
 
         self.datacollector = DataCollector(
             model_reporters={
-                "EV": lambda m: sum(
-                    1 for a in m.agents if isinstance(a, HouseholdAgent) and a.state.name == "EV"
+                "ev": lambda m: sum(
+                    1 for a in m.agents if isinstance(a, HouseholdAgent) and a.state.name == "EV_HOLDER"
                 ),
-                "ICE": lambda m: sum(
-                    1 for a in m.agents if isinstance(a, HouseholdAgent) and a.state.name == "ICE"
+                "ice": lambda m: sum(
+                    1 for a in m.agents if isinstance(a, HouseholdAgent) and a.state.name == "ICE_HOLDER"
                 ),
             }
         )
