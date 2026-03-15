@@ -243,20 +243,24 @@ class HouseholdAgent(LLMAgent, mesa.discrete_space.CellAgent):
 
     def compute_social_influence(self):
 
-        neighbors = self.model.grid.get_neighbors(
-            self.pos, moore=True, include_center=False
-        )
+    neighbors = self.model.grid.get_neighbors(
+        self.pos, moore=True, include_center=False
+    )
 
-        ev_neighbors = sum(
-            1
-            for n in neighbors
-            if isinstance(n, HouseholdAgent) and n.state == AgentState.EV_HOLDER
-        )
+    household_neighbors = [
+        n for n in neighbors if isinstance(n, HouseholdAgent)
+    ]
 
-        if len(neighbors) == 0:
-            return 0
+    if len(household_neighbors) == 0:
+        return 0
 
-        return ev_neighbors / len(neighbors)
+    ev_neighbors = sum(
+        1
+        for n in household_neighbors
+        if n.state == AgentState.EV_HOLDER
+    )
+
+    return ev_neighbors / len(household_neighbors)
 
     # ---------------- INFRASTRUCTURE ----------------
 
