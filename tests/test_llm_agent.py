@@ -18,7 +18,7 @@ from mesa_llm.reasoning.react import ReActReasoning
 def test_apply_plan_adds_to_memory(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(3, 3, torus=False)
 
         def add_agent(self, pos):
@@ -73,7 +73,7 @@ def test_apply_plan_preserves_multiple_tool_calls(monkeypatch):
 
     class DummyModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(5, 5, torus=False)
 
     model = DummyModel()
@@ -130,7 +130,7 @@ async def test_aapply_plan_preserves_multiple_tool_calls(monkeypatch):
 
     class DummyModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(5, 5, torus=False)
 
     model = DummyModel()
@@ -185,7 +185,7 @@ async def test_aapply_plan_preserves_multiple_tool_calls(monkeypatch):
 def test_generate_obs_with_one_neighbor(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
-            super().__init__(seed=45)
+            super().__init__(rng=45)
             self.grid = MultiGrid(3, 3, torus=False)
 
         def add_agent(self, pos, agent_class=LLMAgent):
@@ -241,7 +241,7 @@ def test_generate_obs_with_one_neighbor(monkeypatch):
 def test_send_message_updates_both_agents_memory(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
-            super().__init__(seed=45)
+            super().__init__(rng=45)
             self.grid = MultiGrid(3, 3, torus=False)
 
         def add_agent(self, pos, agent_class=LLMAgent):
@@ -298,7 +298,7 @@ def test_send_message_updates_both_agents_memory(monkeypatch):
 async def test_aapply_plan_adds_to_memory(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(3, 3, torus=False)
 
         def add_agent(self, pos):
@@ -345,7 +345,7 @@ async def test_aapply_plan_adds_to_memory(monkeypatch):
 async def test_agenerate_obs_with_one_neighbor(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
-            super().__init__(seed=45)
+            super().__init__(rng=45)
             self.grid = MultiGrid(3, 3, torus=False)
 
         def add_agent(self, pos):
@@ -397,7 +397,7 @@ async def test_async_wrapper_calls_pre_and_post(monkeypatch):
 
     class DummyModel(Model):
         def __init__(self):
-            super().__init__(seed=1)
+            super().__init__(rng=1)
             self.grid = MultiGrid(3, 3, torus=False)
 
     model = DummyModel()
@@ -453,7 +453,7 @@ def _make_agent(model, vision=0, internal_state=None):
 
 def test_safer_cell_access_agent_with_cell_no_pos(monkeypatch):
     """Agent location falls back to cell.coordinate when pos=None."""
-    model = Model(seed=42)
+    model = Model(rng=42)
     agent = _make_agent(model)
     agent.pos = None
     agent.cell = MockCell(coordinate=(3, 4))
@@ -466,7 +466,7 @@ def test_safer_cell_access_agent_with_cell_no_pos(monkeypatch):
 
 def test_safer_cell_access_agent_without_cell_or_pos(monkeypatch):
     """Agent location returns None gracefully when neither pos nor cell exists."""
-    model = Model(seed=42)
+    model = Model(rng=42)
     agent = _make_agent(model)
     agent.pos = None
     if hasattr(agent, "cell"):
@@ -483,7 +483,7 @@ def test_safer_cell_access_neighbor_with_cell_no_pos(monkeypatch):
 
     class GridModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(3, 3, torus=False)
 
     model = GridModel()
@@ -516,7 +516,7 @@ def test_safer_cell_access_neighbor_without_cell_or_pos(monkeypatch):
 
     class GridModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(3, 3, torus=False)
 
     model = GridModel()
@@ -550,7 +550,7 @@ def test_generate_obs_with_continuous_space(monkeypatch):
 
     class ContModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.space = ContinuousSpace(x_max=10.0, y_max=10.0, torus=False)
 
     model = ContModel()
@@ -586,7 +586,7 @@ def test_generate_obs_vision_all_agents(monkeypatch):
 
     class GridModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(10, 10, torus=False)
 
     model = GridModel()
@@ -616,7 +616,7 @@ def test_generate_obs_vision_all_agents(monkeypatch):
 
 def test_generate_obs_no_grid_with_vision(monkeypatch):
     """When the model has no grid/space, generate_obs falls back to empty neighbors."""
-    model = Model(seed=42)  # no grid, no space
+    model = Model(rng=42)  # no grid, no space
     agents = LLMAgent.create_agents(
         model,
         n=2,
@@ -648,7 +648,7 @@ def test_generate_obs_standard_grid_with_vision_radius(monkeypatch):
 
     class GridModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             # Reverted to width/height for SingleGrid
             self.grid = SingleGrid(width=5, height=5, torus=False)
 
@@ -683,7 +683,7 @@ def test_generate_obs_orthogonal_grid_branches(monkeypatch):
 
     class OrthoModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             # Pass self.random to ensure reproducibility
             self.grid = OrthogonalMooreGrid(dimensions=(5, 5), random=self.random)
 
@@ -723,7 +723,7 @@ def test_generate_obs_with_non_llm_neighbor(monkeypatch):
 
     class MixedModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(5, 5, torus=False)
 
     model = MixedModel()
@@ -756,7 +756,7 @@ async def test_agenerate_obs_with_non_llm_neighbor(monkeypatch):
 
     class MixedModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(5, 5, torus=False)
 
     model = MixedModel()
@@ -789,7 +789,7 @@ def _make_send_message_model(monkeypatch):
 
     class DummyModel(Model):
         def __init__(self):
-            super().__init__(seed=45)
+            super().__init__(rng=45)
             self.grid = MultiGrid(3, 3, torus=False)
 
         def add_agent(self, pos):
