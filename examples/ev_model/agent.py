@@ -361,4 +361,6 @@ class HouseholdAgent(LLMAgent, mesa.discrete_space.CellAgent):
         self.calculate_ice_cost()
         self.calculate_ev_cost()
         self.compute_utility()
+        self.drive()
         self.make_decision()
+        
