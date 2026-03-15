@@ -39,7 +39,7 @@ Ensure you are using Python 3.12 or later.
 
 ## Prerequisites
 
-Like the introductory tutorial, this guide uses **Ollama** as the default LLM provider.
+The example uses **ollama** as the default LLM provider.
 
 - Ensure **Ollama** is installed and running (`http://localhost:11434`).
 - Pull the required model:
@@ -138,7 +138,7 @@ class Seller(LLMAgent):
         # Observation passed to the reasoning module.
         # Includes the current step and seller-specific constraints.
         observation = {
-            "step": self.model.steps,
+            "step": int(self.model.time),
             "min_price": self.internal_state["min_price"]
         }
 
@@ -207,7 +207,7 @@ class Buyer(LLMAgent):
 
         observation = {
 
-            "step": self.model.steps,
+            "step": int(self.model.time),
             "budget": self.internal_state["budget"],
         }
 
@@ -297,7 +297,7 @@ class NegotiationModel(Model):
         """
 
         # Print the current step number for clarity in the output
-        print(f"\n--- Model step {self.steps} ---")
+        print(f"\n--- Model step {int(self.time)} ---")
 
         # Activate all agents in random order
         self.agents.shuffle_do("step")
@@ -321,20 +321,22 @@ if __name__ == "__main__":
 ## Understanding the Output
 Below is an example of the reasoning output produced by `ReActReasoning`:
 ``` bash
-Message                                                                           │
-│    └── message : My minimum acceptable price is 60.                                 │
-│    └── sender : LLMAgent 1                                                          │
-│    └── recipients : [<__main__.Buyer object at 0x13d015450>]                        │
-│                                                                                     │
-[Plan]                                                                              │
-│    └── reasoning : As I am at step 1, I don't have any information about the        │
-│ environment or my position. Since my short-term memory is empty and my long-term    │
-│ memory doesn't provide any relevant context, I will focus on getting more           │
-│ information about my surroundings. The current observation suggests that the        │
-│ minimum price is 60, but this might not be directly related to my actions.          │
-│ Therefore, I decide to move one step in a random direction to gather more           │
-│ information about the environment and potentially find some clues or objects.       │
+╭─ Message ─────────────────────────────────────────────────────────────────────────────╮
+│                                                                                       │
+│    └── message : My minimum acceptable price is 60.                                   │
+│    └── sender : LLMAgent 1                                                            │
+│    └── recipients : [<__main__.Buyer object at 0x13d015450>]                          │
+│                                                                                       │
+[Plan]                                                                                  │
+│    └── reasoning : As I am at step 1, I don't have any information about the          │
+│ environment or my position. Since my short-term memory is empty and my long-term      │
+│ memory doesn't provide any relevant context, I will focus on getting more             │
+│ information about my surroundings. The current observation suggests that the          │
+│ minimum price is 60, but this might not be directly related to my actions.            │
+│ Therefore, I decide to move one step in a random direction to gather more             │
+│ information about the environment and potentially find some clues or objects.         │
 │    └── action : move_one_step
+╰───────────────────────────────────────────────────────────────────────────────────────╯
 ```
 ## About Actions in the Output
 `ReActReasoning` produces both a reasoning trace and an action suggestion.

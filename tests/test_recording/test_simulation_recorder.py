@@ -177,9 +177,11 @@ class TestSimulationRecorder:
     def test_get_events_by_step(self, recorder, mock_model):
         """Test filtering events by simulation step."""
         mock_model.steps = 1
+        mock_model.time = 1.0
         recorder.record_event("event1", {"data": "1"})
 
         mock_model.steps = 2
+        mock_model.time = 2.0
         recorder.record_event("event2", {"data": "2"})
         recorder.record_event("event3", {"data": "3"})
 
@@ -224,6 +226,7 @@ class TestSimulationRecorder:
         """Test saving recording in JSON format."""
         # Add some test data
         mock_model.steps = 5
+        mock_model.time = 5.0
         mock_model.agents = [Mock(), Mock()]  # 2 agents
         mock_model.max_steps = 10  # Add max_steps to avoid comparison error
 
@@ -301,6 +304,7 @@ class TestSimulationRecorder:
         """Test getting recording statistics."""
         # Add some test events
         mock_model.steps = 3
+        mock_model.time = 3.0
         recorder.record_event("observation", {"data": "obs1"}, agent_id=123)
         recorder.record_event("action", {"data": "act1"}, agent_id=123)
         recorder.record_event("observation", {"data": "obs2"}, agent_id=456)
@@ -318,6 +322,7 @@ class TestSimulationRecorder:
         """Test completion status determination when max_steps is available."""
         mock_model.max_steps = 10
         mock_model.steps = 5
+        mock_model.time = 5.0
 
         recorder.save()
 
@@ -326,6 +331,7 @@ class TestSimulationRecorder:
 
         # Test completed status
         mock_model.steps = 10
+        mock_model.time = 10.0
         recorder.save()
         assert recorder.simulation_metadata["completion_status"] == "completed"
 

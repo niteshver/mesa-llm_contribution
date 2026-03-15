@@ -127,7 +127,7 @@ class SimpleAgent(LLMAgent):
         )
 
     def step(self):
-        observation = {"step": self.model.steps}
+        observation = {"step": int(self.model.time)}
 
         prompt = """
         This is a new simulation step.
@@ -180,7 +180,7 @@ class SimpleModel(Model):
         )
 
     def step(self):
-        print(f"\nModel step {self.steps}")
+        print(f"\nModel step {int(self.time)}")
         self.agents.shuffle_do("step")
 ```
 
