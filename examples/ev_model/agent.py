@@ -1,27 +1,27 @@
-import math
 import random
 from enum import Enum
 
 import mesa
+
 from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.memory.st_lt_memory import STLTMemory
 from mesa_llm.tools.tool_manager import ToolManager
 
-
-
 HOUSEHOLD_TOOL_MANAGER = ToolManager()
+
 
 class AgentState(Enum):
     NONE_HOLDER = "none_holder"
     ICE_HOLDER = "ice_holder"
     EV_HOLDER = "ev_holder"
 
+
 # -------------------------------
 # Charging Station Agent
 # -------------------------------
 
-class ChargingStationAgent(LLMAgent, mesa.discrete_space.CellAgent):
 
+class ChargingStationAgent(LLMAgent, mesa.discrete_space.CellAgent):
     """
     Charging station providing electricity for EV vehicles.
 
@@ -62,8 +62,6 @@ class ChargingStationAgent(LLMAgent, mesa.discrete_space.CellAgent):
         of the EV adoption utility function used by households.
     """
 
-   
-
     def __init__(
         self,
         model,
@@ -96,16 +94,12 @@ class ChargingStationAgent(LLMAgent, mesa.discrete_space.CellAgent):
             display=False,
         )
 
-        
-
     def charging_cost(self, kwh):
 
         return kwh * self.price_per_kwh
-    
+
 
 class HouseholdAgent(LLMAgent, mesa.discrete_space.CellAgent):
-
-
     """
     Household agent deciding whether to adopt an Electric Vehicle (EV)
     or continue using an Internal Combustion Engine (ICE) vehicle.
@@ -199,8 +193,8 @@ class HouseholdAgent(LLMAgent, mesa.discrete_space.CellAgent):
         # utilities
         self.utility_ev = 0
         self.utility_ice = 0
-        self.battery_capacity = 60   # kWh
-        self.battery_level = 60      # start full
+        self.battery_capacity = 60  # kWh
+        self.battery_level = 60  # start full
         self.energy_consumption = 0.18  # kWh per km
         self.daily_distance = random.uniform(10, 50)
 
@@ -212,9 +206,7 @@ class HouseholdAgent(LLMAgent, mesa.discrete_space.CellAgent):
 
         self.tool_manager = HOUSEHOLD_TOOL_MANAGER
 
-        self.internal_state.append(
-            f"My income is {self.income}"
-        )
+        self.internal_state.append(f"My income is {self.income}")
 
         self.internal_state.append(
             f"My environmental awareness is {self.env_awareness}"
@@ -225,15 +217,11 @@ class HouseholdAgent(LLMAgent, mesa.discrete_space.CellAgent):
     def calculate_ice_cost(self):
 
         fuel_cost = (
-            self.model.fuel_price
-            * self.annual_mileage
-            / self.model.fuel_efficiency
+            self.model.fuel_price * self.annual_mileage / self.model.fuel_efficiency
         )
 
         self.total_cost_ice = (
-            self.model.purchase_price_ice
-            + fuel_cost
-            + self.model.maintenance_ice
+            self.model.purchase_price_ice + fuel_cost + self.model.maintenance_ice
         )
 
     def calculate_ev_cost(self):
@@ -278,7 +266,6 @@ class HouseholdAgent(LLMAgent, mesa.discrete_space.CellAgent):
         scores = []
 
         for s in stations:
-
             dx = self.pos[0] - s.pos[0]
             dy = self.pos[1] - s.pos[1]
             distance = (dx**2 + dy**2) ** 0.5
@@ -295,13 +282,14 @@ class HouseholdAgent(LLMAgent, mesa.discrete_space.CellAgent):
 
     def compute_utility(self):
 
-        financial = (self.total_cost_ice - self.total_cost_ev) / max(self.total_cost_ice, 1)
+        financial = (self.total_cost_ice - self.total_cost_ev) / max(
+            self.total_cost_ice, 1
+        )
         social = self.compute_social_influence()
         infrastructure = self.compute_infrastructure_score()
         environment = self.env_awareness
         risk = self.risk_aversion
 
-       
         self.utility_ev = (
             self.model.alpha_financial * financial
             + self.model.beta_social * social
@@ -311,13 +299,12 @@ class HouseholdAgent(LLMAgent, mesa.discrete_space.CellAgent):
         )
 
         self.utility_ice = (
-            - self.model.alpha_financial * financial
+            -self.model.alpha_financial * financial
             - self.model.beta_social * social
             - self.model.gamma_infrastructure * infrastructure
             - self.model.delta_environment * environment
         )
 
- 
     def drive(self):
         if self.state == AgentState.EV_HOLDER:
             energy_used = self.daily_distance * self.energy_consumption
@@ -330,8 +317,7 @@ class HouseholdAgent(LLMAgent, mesa.discrete_space.CellAgent):
         stations = self.model.charging_stations
 
         nearest = min(
-            stations,
-            key=lambda s: self.model.grid.get_distance(self.pos, s.pos)
+            stations, key=lambda s: self.model.grid.get_distance(self.pos, s.pos)
         )
         return nearest
 
@@ -360,12 +346,10 @@ class HouseholdAgent(LLMAgent, mesa.discrete_space.CellAgent):
         - charge_ev
         """
 
-         
-
         plan = self.reasoning.plan(
             prompt=prompt,
             obs=observation,
-            selected_tools=["buy_ev","buy_ice","charge_ev"],
+            selected_tools=["buy_ev", "buy_ice", "charge_ev"],
         )
 
         self.apply_plan(plan)
@@ -378,9 +362,3 @@ class HouseholdAgent(LLMAgent, mesa.discrete_space.CellAgent):
         self.calculate_ev_cost()
         self.compute_utility()
         self.make_decision()
-
-
-
-
-
-

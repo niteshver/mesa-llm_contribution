@@ -1,23 +1,10 @@
-import random
 from typing import TYPE_CHECKING
 
-from examples.ev_model.agent import(
-    AgentState,
-    ChargingStationAgent,
-    HouseholdAgent,
-    HOUSEHOLD_TOOL_MANAGER
-)
+from examples.ev_model.agent import HOUSEHOLD_TOOL_MANAGER, AgentState
 from mesa_llm.tools.tool_decorator import tool
 
 if TYPE_CHECKING:
-    from mesa_llm.llm_agent import LLMAgent
-
-from mesa_llm.tools.tool_decorator import tool
-
-
-from mesa_llm.tools.tool_decorator import tool
-from examples.ev_model.agent import AgentState, HOUSEHOLD_TOOL_MANAGER
-
+    pass
 
 
 @tool(tool_manager=HOUSEHOLD_TOOL_MANAGER)
@@ -66,7 +53,7 @@ def buy_ice(agent):
 
     return "Agent purchased an ICE vehicle."
 
-    
+
 @tool(tool_manager=HOUSEHOLD_TOOL_MANAGER)
 def charge_ev(agent):
     """

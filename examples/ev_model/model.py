@@ -2,12 +2,10 @@ from mesa.datacollection import DataCollector
 from mesa.model import Model
 from mesa.space import MultiGrid
 
-from examples.ev_model.agent import ChargingStationAgent,HouseholdAgent
-from mesa_llm.reasoning.reasoning import Reasoning
+from examples.ev_model.agent import ChargingStationAgent, HouseholdAgent
 
 
 class EVModel(Model):
-
     def __init__(
         self,
         num_households,
@@ -88,7 +86,6 @@ class EVModel(Model):
         )
 
         for agent in agents:
-
             x = self.random.randrange(self.grid.width)
             y = self.random.randrange(self.grid.height)
 
@@ -99,10 +96,14 @@ class EVModel(Model):
         self.datacollector = DataCollector(
             model_reporters={
                 "ev": lambda m: sum(
-                    1 for a in m.agents if isinstance(a, HouseholdAgent) and a.state.name == "EV_HOLDER"
+                    1
+                    for a in m.agents
+                    if isinstance(a, HouseholdAgent) and a.state.name == "EV_HOLDER"
                 ),
                 "ice": lambda m: sum(
-                    1 for a in m.agents if isinstance(a, HouseholdAgent) and a.state.name == "ICE_HOLDER"
+                    1
+                    for a in m.agents
+                    if isinstance(a, HouseholdAgent) and a.state.name == "ICE_HOLDER"
                 ),
             }
         )
@@ -113,8 +114,8 @@ class EVModel(Model):
 
         self.datacollector.collect(self)
 
+
 if __name__ == "__main__":
-   
     from examples.ev_model.app import model
 
     for _ in range(5):

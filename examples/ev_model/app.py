@@ -1,21 +1,17 @@
 import logging
 import warnings
-import solara
-from dotenv import load_dotenv
-import matplotlib.pyplot as plt
 
+from dotenv import load_dotenv
 from mesa.visualization import (
     SolaraViz,
-    make_space_component,
     make_plot_component,
+    make_space_component,
 )
 
-from examples.ev_model.agent import HouseholdAgent, AgentState
+from examples.ev_model.agent import AgentState, HouseholdAgent
 from examples.ev_model.model import EVModel
-
 from mesa_llm.parallel_stepping import enable_automatic_parallel_stepping
 from mesa_llm.reasoning.react import ReActReasoning
-
 
 warnings.filterwarnings(
     "ignore",
@@ -35,7 +31,7 @@ load_dotenv()
 # -----------------------
 
 agent_colors = {
-    AgentState.EV_HOLDER: "#2ecc71",   # green
+    AgentState.EV_HOLDER: "#2ecc71",  # green
     AgentState.ICE_HOLDER: "#e74c3c",  # red
 }
 
@@ -74,6 +70,7 @@ model = EVModel(
 # Agent Visualization
 # -----------------------
 
+
 def agent_portrayal(agent):
 
     if agent is None:
@@ -85,14 +82,11 @@ def agent_portrayal(agent):
     }
 
     if isinstance(agent, HouseholdAgent):
-
         if agent.state == AgentState.EV_HOLDER:
-
             portrayal["color"] = agent_colors[AgentState.EV_HOLDER]
             portrayal["marker"] = "$EV$"
 
         elif agent.state == AgentState.ICE_HOLDER:
-
             portrayal["color"] = agent_colors[AgentState.ICE_HOLDER]
             portrayal["marker"] = "$ICE$"
 
@@ -135,7 +129,6 @@ chart_component = make_plot_component(
 # -----------------------
 
 if __name__ == "__main__":
-
     page = SolaraViz(
         model,
         components=[
