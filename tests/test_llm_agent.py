@@ -906,4 +906,3 @@ def test_generate_obs_with_none_pos(monkeypatch):
     assert obs is not None
     assert obs.self_state["location"] is None
     assert len(obs.local_state) == 0
-
