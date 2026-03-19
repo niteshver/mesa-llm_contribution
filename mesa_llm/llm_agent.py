@@ -162,20 +162,21 @@ class LLMAgent(Agent):
             "internal_state": self.internal_state,
         }
         if self.vision is not None and self.vision > 0:
+            # Early return: agent has no position and no cell — cannot query neighbors
+            if self.pos is None and getattr(self, "cell", None) is None:
+                return self_state, {}
+
             # Check which type of space/grid the model uses
             grid = getattr(self.model, "grid", None)
             space = getattr(self.model, "space", None)
 
             if grid and isinstance(grid, SingleGrid | MultiGrid):
-                if self.pos is None:
-                    neighbors = []
-                else:
-                    neighbors = grid.get_neighbors(
-                        tuple(self.pos),
-                        moore=True,
-                        include_center=False,
-                        radius=self.vision,
-                    )
+                neighbors = grid.get_neighbors(
+                    tuple(self.pos),
+                    moore=True,
+                    include_center=False,
+                    radius=self.vision,
+                )
             elif grid and isinstance(
                 grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid
             ):
@@ -190,13 +191,10 @@ class LLMAgent(Agent):
                     neighbors = []
 
             elif space and isinstance(space, ContinuousSpace):
-                if self.pos is None:
-                    neighbors = []
-                else:
-                    all_nearby = space.get_neighbors(
-                        self.pos, radius=self.vision, include_center=True
-                    )
-                    neighbors = [a for a in all_nearby if a is not self]
+                all_nearby = space.get_neighbors(
+                    self.pos, radius=self.vision, include_center=True
+                )
+                neighbors = [a for a in all_nearby if a is not self]
 
             else:
                 # No recognized grid/space type
