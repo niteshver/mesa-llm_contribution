@@ -11,7 +11,6 @@ from mesa_llm.recording.record_model import record_model
 from examples.hospital_diagnosis_model.agent import (
     PatientAgent,
     DoctorAgent,
-    HospitalAgent,
     PatientState,
 )
 
@@ -23,10 +22,13 @@ class HospitalModel(Model):
         initial_doctors: int = 5,
         width: int = 20,
         height: int = 20,
-        reasoning: type[Reasoning] = None,
-        llm_model: str = "gpt-4o-mini",
-        vision: int = 3,
+        reasoning=type[Reasoning],
+        llm_model=str,
+        vision: int,
+        parallel_stepping=True,
         seed=None,
+
+
     ):
         super().__init__(seed=seed)
 
@@ -47,8 +49,7 @@ class HospitalModel(Model):
         ]
 
         # --- Hospital ---
-        self.hospital = HospitalAgent(self)
-        self.grid.place_agent(self.hospital, (width // 2, height // 2))
+        
 
         # --- Create Doctors ---
         for _ in range(self.initial_doctors):
@@ -104,16 +105,13 @@ class HospitalModel(Model):
             and agent.state == PatientState.SICK
         )
 
-    def count_recovered(self):
-        return sum(
-            1 for agent in self.agents if isinstance(agent, PatientAgent)
-            and agent.state == PatientState.RECOVERED
-        )
+  
+    
 
-    def count_dead(self):
+    def count_admit(self):
         return sum(
             1 for agent in self.agents if isinstance(agent, PatientAgent)
-            and agent.state == PatientState.DEATH
+            and agent.state == PatientState.ADMITED
         )
 
     # -----------------------------

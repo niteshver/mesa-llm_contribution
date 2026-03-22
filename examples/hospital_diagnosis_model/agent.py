@@ -1,6 +1,6 @@
-import math
 from enum import Enum
 import random
+
 import mesa
 
 from mesa_llm.llm_agent import LLMAgent
@@ -13,13 +13,11 @@ DOCTOR_TOOL_MANAGER = ToolManager()
 
 
 class PatientState(Enum):
-    HEALTHY = "HEALTHY"
     SICK = "SICK"
-    RECOVERED = "RECOVERED"
-    DEATH = "DEATH"
+    ADMITED = "ADMITED"
+
 
 class DoctorAgent(LLMAgent):
-
     def __init__(self, model, reasoning, llm_model, system_prompt, step_prompt, vision):
         super().__init__(
             model=model,
@@ -30,9 +28,9 @@ class DoctorAgent(LLMAgent):
             vision=vision,
         )
 
-        self.specialization = random.choice([
-            "general_physician", "cardiologist", "neurologist"
-        ])
+        self.specialization = random.choice(
+            ["general_physician", "cardiologist", "neurologist"]
+        )
         self.experience_level = random.randint(3, 20)
         self.accuracy_rate = random.uniform(0.7, 0.95)
         self.fatigue = 0.0
@@ -41,19 +39,18 @@ class DoctorAgent(LLMAgent):
         self.tool_manager = DOCTOR_TOOL_MANAGER
 
         self.internal_state.append(
-            f"You have a speacialization is {self.specialization}"
+            f"You have a specialization in {self.specialization}."
         )
         self.internal_state.append(
-            f"You have an experience  is{self.experience_level}"
+            f"You have {self.experience_level} years of experience."
         )
 
     def step(self):
-
         observation = self.generate_obs()
 
         prompt = f"""
         You are a doctor with specialization {self.specialization},
-        experience level is {self.experience_level} and accuracy_rate is {self.accuracy_rate}
+        experience level {self.experience_level}, and accuracy rate {self.accuracy_rate}.
 
         Decide:
         - Diagnose disease
@@ -67,19 +64,13 @@ class DoctorAgent(LLMAgent):
         plan = self.reasoning.plan(
             prompt=prompt,
             obs=observation,
-            selected_tools=[
-                "diagnose",
-                "prescribe_test",
-                "treat_patient",
-                "admit_patient",
-                "speak_to_patient"
-            ],
+            selected_tools=["admit_patient", "speak_to"],
         )
 
-        self.execute_plan(plan)
+        self.apply_plan(plan)
+
 
 class PatientAgent(LLMAgent):
-
     def __init__(self, model, reasoning, llm_model, system_prompt, step_prompt, vision):
         super().__init__(
             model=model,
@@ -97,56 +88,41 @@ class PatientAgent(LLMAgent):
 
         self.memory = STLTMemory(agent=self, llm_model=llm_model, display=True)
         self.tool_manager = PATIENT_TOOL_MANAGER
-        self.internal_state.append(
-            f"You have an age{self.age}"
-        )
-        self.internal_state.append(
-            f"You have an symptom {self.symptoms}"
-        )
-        self.internal_state.append(
-            f"You have an wealth{self.wealth}"
-        )
-
+        self.internal_state.append(f"You are {self.age} years old.")
+        self.internal_state.append(f"Your symptoms are {self.symptoms}.")
+        self.internal_state.append(f"Your wealth is {self.wealth}.")
 
     def step(self):
-
         observation = self.generate_obs()
-       
+
         prompt = f"""
-        You are a patient having an age{self.age},
-        symtoms is {self.symptoms} and wealth is {self.wealth}.
+        You are a patient with age {self.age},
+        symptoms {self.symptoms}, and wealth {self.wealth}.
 
         Decide:
         - Visit hospital or wait
         - Talk to doctor
-        - Accept or reject treatment (based on cost)
-
+        - Accept or reject treatment based on cost
         """
 
         plan = self.reasoning.plan(
             prompt=prompt,
             obs=observation,
-            selected_tools=[
-                "visit_hospital",
-                "speak_to_doctor",
-                "accept_treatment",
-                "reject_treatment"
-            ],
+            selected_tools=["visit_hospital", "speak_to"],
         )
 
-        self.execute_plan(plan)
+        self.apply_plan(plan)
+
 
 class HospitalAgent(mesa.Agent):
-
     def __init__(self, model):
         super().__init__(model)
-
         self.capacity = random.randint(10, 50)
-        self.doctors_available = random.randint(5, 20)
         self.queue = []
 
     def admit(self, patient):
-        if len(self.queue) < self.capacity:
+        if len(self.queue) >= self.capacity:
+            return "Hospital full"
+        if patient not in self.queue:
             self.queue.append(patient)
-            return "Patient admitted"
-        return "Hospital full"
+        return "Patient admitted"
