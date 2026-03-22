@@ -93,7 +93,7 @@ class MigrationModel(Model):
 if __name__ == "__main__":
     """
     run the model without the solara integration with:
-    conda activate mesa-llm && python -m examples.epstein_civil_violence.model
+
     """
     from examples.migration_model.app import model
 
