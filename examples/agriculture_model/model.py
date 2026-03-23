@@ -104,7 +104,6 @@ class FarmerModel(Model):
             }
         )
 
-
     def _normalize_rainfall(self, rainfall: float | str | None) -> str:
         if isinstance(rainfall, str):
             rainfall_upper = rainfall.upper()
@@ -126,7 +125,7 @@ class FarmerModel(Model):
         self.datacollector.collect(self)
 
         if (self.current_day - self.start_date).days >= 120:
-         self.running = False
+            self.running = False
 
 
 if __name__ == "__main__":

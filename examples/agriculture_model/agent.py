@@ -1,4 +1,3 @@
-import random
 from enum import Enum
 
 from mesa_llm.llm_agent import LLMAgent

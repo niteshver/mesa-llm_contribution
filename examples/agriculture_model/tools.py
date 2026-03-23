@@ -51,7 +51,7 @@ def apply_fertilizer(agent, level: float = 0.5):
     if level < 0:
         raise ValueError("level must be non-negative")
     if agent.crop_state in [CropState.IDLE, CropState.READY]:
-     return "Cannot apply fertilizer at this stage"
+        return "Cannot apply fertilizer at this stage"
 
     agent.fertilizer += level
     if agent.crop_state == CropState.PLANTED:
