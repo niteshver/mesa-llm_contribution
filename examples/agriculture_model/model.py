@@ -1,14 +1,12 @@
 from datetime import datetime, timedelta
-import random
+
 from mesa import Model
 from mesa.datacollection import DataCollector
 from mesa.space import MultiGrid
 
-from mesa_llm.reasoning.reasoning import Reasoning
-from mesa_llm.reasoning.react import ReActReasoning
-from mesa_llm.recording.record_model import record_model
-
 from examples.agriculture_model.agent import CropState, FarmerAgent
+from mesa_llm.reasoning.reasoning import Reasoning
+from mesa_llm.recording.record_model import record_model
 
 
 @record_model(output_dir="recordings")

@@ -129,5 +129,3 @@ class FarmerAgent(LLMAgent):
         self.update_crop_state()
         self.decide()
         self.update_crop_state()
-
-

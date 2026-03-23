@@ -1,8 +1,7 @@
 from datetime import timedelta
 
+from examples.agriculture_model.agent import FARMER_TOOL_MANAGER, CropState
 from mesa_llm.tools.tool_decorator import tool
-
-from examples.agriculture_model.agent import CropState, FARMER_TOOL_MANAGER
 
 
 @tool(tool_manager=FARMER_TOOL_MANAGER)
@@ -58,6 +57,7 @@ def apply_fertilizer(agent, level: float = 0.5):
     if agent.crop_state == CropState.PLANTED:
         agent.crop_state = CropState.GROWING
     return f"Fertilizer applied: {level}"
+
 
 @tool(tool_manager=FARMER_TOOL_MANAGER)
 def harvest_crop(agent):

@@ -2,14 +2,17 @@ import logging
 import warnings
 
 from dotenv import load_dotenv
-from mesa.visualization import SolaraViz, Slider, make_plot_component, make_space_component
-
-from mesa_llm.parallel_stepping import enable_automatic_parallel_stepping
-from mesa_llm.reasoning.react import ReActReasoning
+from mesa.visualization import (
+    Slider,
+    SolaraViz,
+    make_plot_component,
+    make_space_component,
+)
 
 from examples.agriculture_model.agent import CropState, FarmerAgent
 from examples.agriculture_model.model import FarmerModel
-
+from mesa_llm.parallel_stepping import enable_automatic_parallel_stepping
+from mesa_llm.reasoning.react import ReActReasoning
 
 warnings.filterwarnings(
     "ignore",

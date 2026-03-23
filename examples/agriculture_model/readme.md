@@ -38,7 +38,7 @@ Each farmer follows a simplified crop lifecycle:
 ### Yield Function
 
 Crop yield depends on rainfall and fertilizer usage:
-``` bash 
+``` bash
 yield = base_yield × rainfall_factor × fertilizer_factor
 
 Where:
@@ -88,10 +88,10 @@ Each Farmer agent:
 
 Farmer agents use tool-based actions:
 
-- `plant_crop` → plants crop and sets harvest date  
-- `apply_fertilizer` → increases yield potential  
-- `harvest_crop` → harvests when ready  
- 
+- `plant_crop` → plants crop and sets harvest date
+- `apply_fertilizer` → increases yield potential
+- `harvest_crop` → harvests when ready
+
 ---
 
 ### LLM-Powered Agents
@@ -106,9 +106,9 @@ Farmers are implemented as **LLM agents**, meaning:
 
 This allows:
 
-- Context-aware decision making  
-- Adaptive strategies  
-- Non-deterministic behavior  
+- Context-aware decision making
+- Adaptive strategies
+- Non-deterministic behavior
 
 ---
 
@@ -147,7 +147,7 @@ For Gemini:
 ---
 
 ### Run the Model
-``` python 
+``` python
 solara run app.py
 ```
 
@@ -159,10 +159,10 @@ Open in browser:
 
 ## Files
 
-- `model.py` → Core simulation logic  
-- `agent.py` → Farmer agent definition  
-- `tools.py` → Actions available to agents  
-- `app.py` → Visualization and UI  
+- `model.py` → Core simulation logic
+- `agent.py` → Farmer agent definition
+- `tools.py` → Actions available to agents
+- `app.py` → Visualization and UI
 
 ---
 
@@ -184,18 +184,18 @@ This model is inspired by:
 
 Related work on Agent-Based Modeling in agriculture:
 
-- Agent-based crop decision models  
-- Climate adaptation simulations  
-- Socio-environmental systems  
+- Agent-based crop decision models
+- Climate adaptation simulations
+- Socio-environmental systems
 
 ---
 
 ## Notes
 
-- This model simplifies crop growth dynamics  
-- Focus is on **decision-making behavior**, not full biological simulation  
+- This model simplifies crop growth dynamics
+- Focus is on **decision-making behavior**, not full biological simulation
 - Can be extended with:
-  - Climate models  
-  - Policy interventions  
-  - Multi-season dynamics  
+  - Climate models
+  - Policy interventions
+  - Multi-season dynamics
 
