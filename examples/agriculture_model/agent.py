@@ -37,11 +37,11 @@ class FarmerAgent(LLMAgent):
         )
 
         self.tool_manager = FARMER_TOOL_MANAGER
-        self.land_size = random.randint(1, 5)
-        self.wealth = random.randint(1000, 50000)
+        self.land_size = self.random.randint(1, 5)
+        self.wealth = self.random.randint(1000, 50000)
         self._base_internal_state = list(self.internal_state)
 
-        self.crop_type = random.choice(["wheat", "rice", "maize"])
+        self.crop_type = self.random.choice(["wheat", "rice", "maize"])
         self.crop_state = CropState.IDLE
 
         self.plant_date = None
@@ -53,7 +53,7 @@ class FarmerAgent(LLMAgent):
 
         self.memory = STLTMemory(
             agent=self,
-            llm_model="ollama/llama3.1:latest",
+            llm_model=llm_model,
             display=True,
         )
 
@@ -118,11 +118,13 @@ class FarmerAgent(LLMAgent):
             rain_factor = 1.0
 
         fert_factor = 1 + 0.3 * self.fertilizer
-        noise = random.uniform(0.9, 1.1)
+        noise = self.random.uniform(0.9, 1.1)
+
+        self.profit = 0
 
         self.yield_output = base_yield * rain_factor * fert_factor * noise
         price = self.model.market_price[self.crop_type]
-        self.profit = self.yield_output * price
+        self.profit += self.yield_output * price
 
     def step(self):
         self.observe_environment()

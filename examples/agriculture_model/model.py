@@ -104,8 +104,6 @@ class FarmerModel(Model):
             }
         )
 
-        # self.running = True
-        # self.datacollector.collect(self)
 
     def _normalize_rainfall(self, rainfall: float | str | None) -> str:
         if isinstance(rainfall, str):
@@ -127,8 +125,8 @@ class FarmerModel(Model):
         self.agents.shuffle_do("step")
         self.datacollector.collect(self)
 
-        # if (self.current_day - self.start_date).days > 120:
-        #     self.running = False
+        if (self.current_day - self.start_date).days >= 120:
+         self.running = False
 
 
 if __name__ == "__main__":
