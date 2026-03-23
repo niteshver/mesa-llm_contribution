@@ -54,7 +54,7 @@ class FarmerAgent(LLMAgent):
         self.memory = STLTMemory(
             agent=self,
             llm_model="ollama/llama3.1:latest",
-            display=False,
+            display=True,
         )
 
     def observe_environment(self):
@@ -76,12 +76,10 @@ class FarmerAgent(LLMAgent):
             self.crop_state = CropState.READY
 
     def decide(self):
-        obs = self.generate_obs()
+        observation = self.generate_obs()
 
         prompt = f"""
         You are a farmer.
-
-        
         wealth: {self.wealth}
         Crop type: {self.crop_type}
         Crop state: {self.crop_state}
@@ -90,15 +88,15 @@ class FarmerAgent(LLMAgent):
         Decide actions:
         - plant_crop(days_to_harvest)
         - apply_fertilizer(level)
-        - wait_action()
         - harvest_crop()
+        - speak_to()
 
         Use tools smartly.
         """
 
         plan = self.reasoning.plan(
             prompt=prompt,
-            obs=obs,
+            obs=observation,
             selected_tools=[
                 "plant_crop",
                 "apply_fertilizer",

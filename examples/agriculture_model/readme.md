@@ -1,515 +1,201 @@
-🌾🚀 AgriCast-ABM
-Farmer Decision & Crop Productivity Model (Mesa + Mesa-LLM)
-🧠 1. Overview
+## Summary
 
-AgriCast-ABM is an agent-based simulation model that captures how farmers respond to weather forecasts, social information, and uncertainty to make agricultural decisions.
+This model simulates how farmers make agricultural decisions under uncertainty such as rainfall variability, market prices, and social influence.
 
-The system models the full feedback loop:
+Farmer agents are placed on a grid and manage their land over a growing season. Each farmer decides when to plant, apply fertilizer, and harvest crops. These decisions directly impact yield and profit.
 
-Weather Forecast → Information Flow → Farmer Decisions → Crop Yield → Learning → Adoption
+The model incorporates environmental factors such as rainfall conditions (low, normal, high) and economic factors such as crop market prices. Additionally, farmers can observe neighboring agents, introducing social influence into decision-making.
 
-It integrates:
+This model is implemented using **Mesa-LLM**, meaning agents are capable of reasoning and tool usage rather than relying purely on fixed rules. Farmers can dynamically decide actions like planting or waiting based on context.
 
-🌦 Environmental dynamics (rainfall variability)
-👨‍🌾 Human decision-making (risk, trust, learning)
-🌐 Social interactions (networks, diffusion)
-🧠 Optional LLM-based reasoning (Mesa-LLM)
-🧱 2. System Architecture
-AgriCastModel
-│
-├── FarmerAgent (Core)
-│
-├── Environment
-│   ├── WeatherSystem
-│   ├── CropEngine
-│
-├── Information Layer
-│   ├── Radio
-│   ├── Extension Agents
-│   ├── Farmer Network
-│
-├── Decision Engine (LLM optional)
-├── Adoption Engine (LTA Model)
-├── Data Collector
-👨‍🌾 3. Agents
-🔹 3.1 FarmerAgent (Core Entity)
-Attributes
-unique_id
-pos
+---
 
-# socio-economic
-land_size
-wealth
-education_level
-risk_aversion
+## Technical Details
 
-# trust system
-trust_radio
-trust_neighbors
-trust_extension
+The **Agriculture Decision Model** simulates farming behavior using a population of **Farmer agents**.
 
-# adoption
-LTA                # Learning–Trust–Adoption score (0–100)
-adopt_forecast     # Boolean
+Each **FarmerAgent** is characterized by:
 
-# farming decisions
-planting_time      # early / normal / late
-fertilizer
-pesticide
-tillage
+- `land_size`
+- `wealth`
+- `education_level`
+- `crop_type` (wheat, rice, maize)
+- `fertilizer` level
+- `crop_state`
+- `yield_output`
+- `profit`
 
-# outputs
-yield_output
-profit
+---
 
-# memory
-past_yields (list)
-🔄 Behavior (Step Flow)
-1. Receive forecast
-2. Interact with neighbors
-3. Update trust
-4. Update LTA
-5. Decide adoption (probabilistic)
-6. Choose farming strategy
-7. Compute yield
-8. Update memory
-9. Learn (feedback)
-🔹 3.2 Information Sources
-📻 Radio
-Global broadcast
-Accuracy-dependent influence
-👨‍🔬 Extension Agents
-High-trust actors
-Direct farmer interaction
-🌐 Farmer Network
-Graph-based (social diffusion)
-Peer learning
-🌦️ 4. Environment
-WeatherSystem
-rainfall ∈ {LOW, NORMAL, HIGH}
-forecast_accuracy ∈ [0.6, 0.8]
-Rainfall Values
-LOW    = 900 mm
-NORMAL = 1300 mm
-HIGH   = 1900 mm
-🌱 5. Crop Engine (Simplified DSSAT)
-Yield Function
-yield =
-base_yield
-× rainfall_factor
-× planting_factor
-× fertilizer_factor
-× pesticide_factor
-× random(0.9, 1.1)
-Factor Definitions
-Rainfall
-LOW    = 0.7
-NORMAL = 1.0
-HIGH   = 1.2
-Planting
-early + high rain  = 1.3
-late + low rain    = 0.8
-else               = 1.0
-Fertilizer
-fertilizer_factor = 1 + 0.3 * fertilizer_level
-Pesticide
-pesticide_factor = 1 + 0.1 * pesticide_level
-🧠 6. Adoption Model (LTA)
-LTA Update Equation
-LTA_new =
-clip(
-    LTA_old
-    + α * (
-        trust_neighbor * info_neighbor +
-        trust_network * info_network +
-        trust_extension * info_extension +
-        trust_radio * info_radio
-    )
-    + β * forecast_accuracy
-    - γ * uncertainty
-, 0, 100)
-Feedback Learning
-LTA_new = LTA_old + δ * (yield - expected_yield)
-Trust Update
-if forecast_correct:
-    trust_radio += 0.05
-else:
-    trust_radio -= 0.1
-🎯 7. Adoption Decision
-Probability Function
-P_adopt = 1 / (1 + e^(-k*(LTA - threshold)))
-Final Decision
-if random.random() < P_adopt:
-    adopt = True
-🌐 8. Interaction System
-Neighbor Interaction
-neighbors = grid.get_neighbors(pos, radius=r)
-Network Interaction
-network = nx.erdos_renyi_graph(n, p)
-Information Aggregation
-info = weighted average of sources
-🔁 9. Simulation Loop
-def step():
+### Crop Lifecycle
 
-    # 1. Weather update
-    update_weather()
+Each farmer follows a simplified crop lifecycle:
+``` bash REST → PLANTED → READY → HARVESTED → REST
+```
 
-    # 2. Information spread
-    for farmer:
-        gather_information()
+---
 
-    # 3. LTA update
-    for farmer:
-        update_LTA()
+### Yield Function
 
-    # 4. Decision making
-    for farmer:
-        decide_adoption()
+Crop yield depends on rainfall and fertilizer usage:
+``` bash 
+yield = base_yield × rainfall_factor × fertilizer_factor
 
-    # 5. Farming actions
-    for farmer:
-        choose_strategy()
+Where:
 
-    # 6. Crop simulation
-    for farmer:
-        compute_yield()
+- `rainfall_factor` depends on environmental condition (LOW / NORMAL / HIGH)
+- `fertilizer_factor` increases yield when fertilizer is applied
 
-    # 7. Learning
-    for farmer:
-        update_memory()
+```
 
-    # 8. Data collection
-    collect_metrics()
-📊 10. Metrics
-Core Metrics
-average_yield
-total_yield
-adoption_rate
-Advanced Metrics
-food_security_index
-information_spread_rate
-trust_distribution
-yield_variance
-⚙️ 11. Parameters
-Global Parameters
-NUM_FARMERS
-GRID_SIZE
-FORECAST_ACCURACY
-INTERACTION_RADIUS
-NETWORK_PROB
-Model Constants
-α = 0.5
-β = 0.3
-γ = 0.2
-δ = 0.1
-k = 0.1
-threshold = 50
-🧠 12. Mesa-LLM Integration (Advanced)
-Farmer Reasoning Prompt
-You are a farmer.
+### Profit Calculation
+``` bash profit = yield × market_price
 
-Rain forecast: LOW
-Neighbors suggest: plant early
-Trust level: medium
+Where:
 
-Decide:
-- planting time
-- fertilizer usage
-- whether to follow forecast
-Available Tools
-listen_radio
-talk_to_neighbor
-apply_fertilizer
-plant_crop
-🚀 13. Extensions
-🔹 Policy Simulation
-Subsidies → increase adoption
-Training → increase trust
-🔹 Climate Change
-Increased rainfall variability
-Forecast uncertainty
-🔹 Economic Layer
-profit = yield * price - cost
-⚠️ 14. Assumptions
-Single crop (maize)
-Fixed land size
-No market dynamics (optional)
-Simplified crop model (DSSAT-inspired)
-⭐ 15. Why This is GSoC-Level
-✔ Hybrid system (social + environmental)
-✔ Behaviorally realistic agents
-✔ Learning + feedback loops
-✔ Scalable architecture
-i want a complete readme.md file 
+- `market_price` depends on crop type
 
-Here’s a polished, complete README.md you can directly use for your repo / GSoC proposal:
+```
 
-🌾🚀 AgriCast-ABM
-Farmer Decision & Crop Productivity Model (Mesa + Mesa-LLM)
-🧠 Overview
+### Environment
 
-AgriCast-ABM is an Agent-Based Model (ABM) that simulates how farmers make agricultural decisions under uncertain weather conditions.
+- The model uses a **MultiGrid** environment
+- Time progresses in **daily steps**
+- Each simulation runs for ~120 days (one farming season)
 
-The system models the full decision pipeline:
+---
 
-Weather Forecast → Information Flow → Farmer Decisions → Crop Yield → Learning → Adoption
+### Farmer Behavior
 
-It combines:
+Each Farmer agent:
 
-🌦️ Environmental simulation (weather + crops)
-👨‍🌾 Human decision-making (farmers)
-🌐 Social interaction (networks, extension agents)
-🧠 Learning & adaptation (trust + LTA)
-🤖 Optional LLM-driven reasoning (Mesa-LLM)
-🧱 Architecture
-AgriCastModel
-│
-├── FarmerAgent (core decision-maker)
-│
-├── Environment
-│   ├── WeatherSystem
-│   ├── CropEngine
-│
-├── Information Layer
-│   ├── Radio (global broadcast)
-│   ├── Extension Agents
-│   ├── Farmer Network (graph-based)
-│
-├── Decision Engine (rule-based / LLM)
-├── Adoption Engine (LTA model)
-├── Data Collector
-👨‍🌾 Agents
-🔹 FarmerAgent (Core Entity)
-Attributes
-unique_id
-pos
+1. Observes:
+   - Rainfall condition
+   - Current crop state
+   - Neighbor behavior
 
-# socio-economic
-land_size
-wealth
-education_level
-risk_aversion
+2. Decides:
+   - Plant crop
+   - Apply fertilizer
+   - Harvest
+   - Wait
 
-# trust system
-trust_radio
-trust_neighbors
-trust_extension
+3. Executes actions using tools
 
-# adoption
-LTA                # Learning Trust Accumulation (0–100)
-adopt_forecast     # Boolean
+---
 
-# farming decisions
-planting_time      # early / normal / late
-fertilizer
-pesticide
-tillage
+### Tools
 
-# outputs
-yield_output
-profit
+Farmer agents use tool-based actions:
 
-# memory
-past_yields (list)
-🔄 Behavior (Per Step)
-1. Receive forecast
-2. Interact with neighbors
-3. Update trust
-4. Update LTA
-5. Decide adoption (probabilistic)
-6. Choose farming strategy
-7. Compute yield
-8. Update memory
-9. Learn (feedback)
-📡 Information Sources
-📻 Radio
-Broadcasts weather forecast globally
-Accuracy depends on system parameter
-👨‍🔬 Extension Agents
-High-trust advisory entities
-Direct influence on farmers
-🌐 Farmer Network
-Graph-based (e.g., Erdős–Rényi)
-Enables peer-to-peer information diffusion
-🌦️ Environment
-WeatherSystem
-rainfall ∈ {LOW, NORMAL, HIGH}
-forecast_accuracy ∈ [0.6, 0.8]
-Rainfall Values
-LOW    = 900 mm
-NORMAL = 1300 mm
-HIGH   = 1900 mm
-🌱 Crop Engine (Simplified DSSAT)
-Yield Function
-yield =
-base_yield
-× rainfall_factor
-× planting_factor
-× fertilizer_factor
-× pesticide_factor
-× random(0.9, 1.1)
-Factors
-🌧️ Rainfall
-LOW    = 0.7
-NORMAL = 1.0
-HIGH   = 1.2
-🌱 Planting Strategy
-early + high rain  = 1.3
-late + low rain    = 0.8
-else               = 1.0
-🧪 Fertilizer
-fertilizer_factor = 1 + 0.3 * fertilizer_level
-🐛 Pesticide
-pesticide_factor = 1 + 0.1 * pesticide_level
-🧠 Adoption Model (LTA)
-🔹 LTA Update
-LTA_new =
-clip(
-    LTA_old
-    + α * (
-        trust_neighbor * info_neighbor +
-        trust_network * info_network +
-        trust_extension * info_extension +
-        trust_radio * info_radio
-    )
-    + β * forecast_accuracy
-    - γ * uncertainty
-, 0, 100)
-🔹 Feedback Learning
-LTA_new = LTA_old + δ * (yield - expected_yield)
-🔹 Trust Update
-if forecast_correct:
-    trust_radio += 0.05
-else:
-    trust_radio -= 0.1
-🎯 Adoption Decision
-Probability Function
-P_adopt = 1 / (1 + e^(-k*(LTA - threshold)))
-Final Decision
-if random.random() < P_adopt:
-    adopt = True
-🌐 Interaction System
-Neighbor Interaction
-neighbors = grid.get_neighbors(pos, radius=r)
-Network Interaction
-network = nx.erdos_renyi_graph(n, p)
-Information Aggregation
-info = weighted average of all sources
-🔁 Simulation Loop
-def step():
+- `plant_crop` → plants crop and sets harvest date  
+- `apply_fertilizer` → increases yield potential  
+- `harvest_crop` → harvests when ready  
+ 
+---
 
-    # 1. Weather update
-    update_weather()
+### LLM-Powered Agents
 
-    # 2. Information spread
-    for farmer:
-        gather_information()
+Farmers are implemented as **LLM agents**, meaning:
 
-    # 3. LTA update
-    for farmer:
-        update_LTA()
+- Decisions are generated via a reasoning module
+- Agents use:
+  - Internal state (wealth, crop, etc.)
+  - Observations (environment + neighbors)
+  - Available tools
 
-    # 4. Decision
-    for farmer:
-        decide_adoption()
+This allows:
 
-    # 5. Farming actions
-    for farmer:
-        choose_strategy()
+- Context-aware decision making  
+- Adaptive strategies  
+- Non-deterministic behavior  
 
-    # 6. Crop simulation
-    for farmer:
-        compute_yield()
+---
 
-    # 7. Learning
-    for farmer:
-        update_memory()
+## How to Run
 
-    # 8. Data collection
-    collect_metrics()
-📊 Metrics
-Core Metrics
-average_yield
-total_yield
-adoption_rate
-Advanced Metrics
-food_security_index
-information_spread_rate
-trust_distribution
-yield_variance
-⚙️ Parameters
-Global Parameters
-NUM_FARMERS
-GRID_SIZE
-FORECAST_ACCURACY
-INTERACTION_RADIUS
-NETWORK_PROB
-Model Constants
-α = 0.5
-β = 0.3
-γ = 0.2
-δ = 0.1
-k = 0.1
-threshold = 50
-🤖 Mesa-LLM Extension (Advanced)
-Farmer Reasoning Prompt
-You are a farmer.
+If you have cloned the repo into your local machine, ensure you run the following command from the root of the library:
+``` bash pip install -e .
+```
 
-Rain forecast: LOW  
-Neighbors suggest: plant early  
-Trust level: medium  
+Then, set up your LLM API key.
 
-Decide:
-- planting time
-- fertilizer usage
-- whether to follow forecast
-Tools
-listen_radio
-talk_to_neighbor
-apply_fertilizer
-plant_crop
-🚀 Extensions
-🏛️ Policy Simulation
-subsidy → increases adoption  
-training → increases trust  
-🌍 Climate Change
-increase rainfall variability
-💰 Economic Layer
-profit = yield * price - cost
-⚠️ Assumptions
-- Single crop (maize)
-- Fixed land size
-- No market dynamics (optional)
-- Simplified crop model
-⭐ Why This is GSoC-Level
-✔ Hybrid system (social + environmental)
-✔ Incorporates learning & feedback loops
-✔ Realistic farmer behavior modeling
-✔ Scalable & modular architecture
-✔ Supports both rule-based and LLM-driven agents
-🏁 Summary
-Farmers receive information
-→ interact socially
-→ update beliefs (LTA)
-→ make decisions
-→ affect yield
-→ learn from outcomes
-→ system evolves
-🚀 Next Steps
+### Setup Steps
 
-You can extend this project by:
+1. Install dotenv if not already installed:
+pip install python-dotenv
+Copy code
 
-Implementing Mesa simulation (model.py, agent.py)
-Adding LLM agents (Mesa-LLM)
-Building a UI with Solara
-Running policy experiments
-Publishing results
+2. Create a `.env` file in the root directory
 
-If you want, I can now generate:
+3. Add your API key:
 
-👉 Full working code (agent.py, model.py, app.py)
-👉 Or a GSoC proposal draft based on this README
+For OpenAI:
+``` python OPENAI_API_KEY=your-api-key
+```
 
-We use cookies
 
-We use cookies to help this site function, understand service usage, and support marketing efforts. Visit Manage Cookies to change preferences anytime. View our Cookie Policy for more info.
+For Gemini:
+``` python GEMINI_API_KEY=your-api-key
+```
+
+4. In `app.py`, set:
+``` python
+- `llm_model = "openai/gpt-4o-mini"` (or your model)
+```
+
+---
+
+### Run the Model
+``` python 
+solara run app.py
+```
+
+
+Open in browser:
+``` bash http://localhost:8765⁠�
+```
+---
+
+## Files
+
+- `model.py` → Core simulation logic  
+- `agent.py` → Farmer agent definition  
+- `tools.py` → Actions available to agents  
+- `app.py` → Visualization and UI  
+
+---
+
+## Metrics
+
+The model tracks:
+
+- **Total Yield**
+- **Average Profit**
+- **Crop Distribution**
+
+---
+
+## Further Reading
+
+This model is inspired by:
+
+> [Agent-Based Modeling in Agricultural Productivity in Rural Area of Bahir Dar](https://www.mdpi.com/2571-9394/4/1/20)
+
+Related work on Agent-Based Modeling in agriculture:
+
+- Agent-based crop decision models  
+- Climate adaptation simulations  
+- Socio-environmental systems  
+
+---
+
+## Notes
+
+- This model simplifies crop growth dynamics  
+- Focus is on **decision-making behavior**, not full biological simulation  
+- Can be extended with:
+  - Climate models  
+  - Policy interventions  
+  - Multi-season dynamics  
+
