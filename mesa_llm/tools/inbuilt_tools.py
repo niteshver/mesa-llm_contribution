@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -204,7 +205,6 @@ def speak_to(
         message: The message to send
     """
     if isinstance(listener_agents_unique_ids, str):
-        import json
         try:
             listener_agents_unique_ids = json.loads(listener_agents_unique_ids)
         except (json.JSONDecodeError, ValueError):

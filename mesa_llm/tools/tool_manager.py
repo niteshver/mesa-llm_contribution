@@ -1,5 +1,6 @@
 import asyncio
 import concurrent.futures
+import contextlib
 import inspect
 import json
 import logging
@@ -131,19 +132,18 @@ class ToolManager:
             except AttributeError:
                 hints = {}
 
-            _COERCE: dict[type, type] = {float: float, int: int}
+            coerce: dict[type, type] = {float: float, int: int}
             filtered_args = {}
             for k, v in function_args.items():
                 if k not in sig.parameters:
                     continue
                 expected = hints.get(k)
-                coerce_fn = _COERCE.get(expected)
+                coerce_fn = coerce.get(expected)
+                new_value = v
                 if coerce_fn is not None and not isinstance(v, expected):
-                    try:
-                        v = coerce_fn(v)
-                    except (ValueError, TypeError):
-                        pass 
-                filtered_args[k] = v
+                    with contextlib.suppress(ValueError, TypeError):
+                        new_value = coerce_fn(v)
+                filtered_args[k] = new_value
 
             if expects_agent:
                 filtered_args["agent"] = agent
