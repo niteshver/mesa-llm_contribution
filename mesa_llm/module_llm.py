@@ -79,20 +79,29 @@ class ModuleLLM:
                 self.llm_model,
             )
 
-    def _build_messages(self, prompt: str | list[str] | None = None) -> list[dict]:
+    def _build_messages(
+        self,
+        prompt: str | list[str] | None = None,
+        system_prompt: str | None = None,
+    ) -> list[dict]:
         """
         Format the prompt messages for the LLM of the form : {"role": ..., "content": ...}
 
         Args:
             prompt: The prompt to generate a response for (str, list of strings, or None)
+            system_prompt: Optional system prompt scoped to this call only.
 
         Returns:
             The messages for the LLM
         """
         messages = []
 
-        # Always include a system message. Default to empty string if no system prompt to support Ollama
-        system_content = self.system_prompt if self.system_prompt else ""
+        # Always include a system message. Default to empty string if no system
+        # prompt to support Ollama.
+        if system_prompt is None:
+            system_content = self.system_prompt if self.system_prompt else ""
+        else:
+            system_content = system_prompt
         messages.append({"role": "system", "content": system_content})
 
         if prompt:
@@ -147,6 +156,7 @@ class ModuleLLM:
         tool_schema: list[dict] | None = None,
         tool_choice: str = "auto",
         response_format: dict | object | None = None,
+        system_prompt: str | None = None,
     ) -> str:
         """
         Generate a response from the LLM using litellm based on the prompt
@@ -156,12 +166,13 @@ class ModuleLLM:
             tool_schema: The schema of the tools to use
             tool_choice: The choice of tool to use
             response_format: The format of the response
+            system_prompt: Optional system prompt scoped to this call only.
 
         Returns:
             The response from the LLM
         """
 
-        messages = self._build_messages(prompt)
+        messages = self._build_messages(prompt, system_prompt=system_prompt)
 
         completion_kwargs = {
             "model": self.llm_model,
@@ -186,11 +197,12 @@ class ModuleLLM:
         tool_schema: list[dict] | None = None,
         tool_choice: str = "auto",
         response_format: dict | object | None = None,
+        system_prompt: str | None = None,
     ) -> str:
         """
         Asynchronous version of generate() method for parallel LLM calls.
         """
-        messages = self._build_messages(prompt)
+        messages = self._build_messages(prompt, system_prompt=system_prompt)
         async for attempt in AsyncRetrying(
             wait=wait_exponential(multiplier=1, min=1, max=60),
             retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),

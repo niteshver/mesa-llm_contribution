@@ -219,3 +219,38 @@ class TestModuleLLM:
             "few minutes and try again, or switch to a different model. To check "
             "your quota visit: https://openrouter.ai/docs/api/reference/limits"
         )
+
+    def test_generate_accepts_per_call_system_prompt(
+        self, monkeypatch, llm_response_factory
+    ):
+        captured = {}
+
+        def _dummy_completion(**kwargs):
+            captured.update(kwargs)
+            return llm_response_factory()
+
+        monkeypatch.setattr("mesa_llm.module_llm.completion", _dummy_completion)
+
+        llm = ModuleLLM(llm_model="openai/gpt-4o", system_prompt="base-system-prompt")
+        llm.generate(prompt="Hello", system_prompt="scoped-system-prompt")
+
+        assert captured["messages"][0]["content"] == "scoped-system-prompt"
+        assert llm.system_prompt == "base-system-prompt"
+
+    @pytest.mark.asyncio
+    async def test_agenerate_accepts_per_call_system_prompt(
+        self, monkeypatch, llm_response_factory
+    ):
+        captured = {}
+
+        async def _dummy_acompletion(**kwargs):
+            captured.update(kwargs)
+            return llm_response_factory()
+
+        monkeypatch.setattr("mesa_llm.module_llm.acompletion", _dummy_acompletion)
+
+        llm = ModuleLLM(llm_model="openai/gpt-4o", system_prompt="base-system-prompt")
+        await llm.agenerate(prompt="Hello", system_prompt="scoped-system-prompt")
+
+        assert captured["messages"][0]["content"] == "scoped-system-prompt"
+        assert llm.system_prompt == "base-system-prompt"

@@ -191,3 +191,35 @@ class TestCoTReasoning:
         assert result.step == 2
         assert result.ttl == 4
         assert mock_agent.llm.agenerate.call_count == 2
+
+    def test_plan_uses_scoped_system_prompts(self, llm_response_factory, mock_agent):
+        """CoT plan should pass prompts per call and avoid mutating llm.system_prompt."""
+        mock_agent.step_prompt = "Default step prompt"
+        mock_agent.llm.system_prompt = "base-system-prompt"
+        mock_agent.memory = Mock()
+        mock_agent.memory.format_long_term.return_value = "Long term memory"
+        mock_agent.memory.format_short_term.return_value = "Short term memory"
+        mock_agent.memory.add_to_memory = Mock()
+        mock_agent.tool_manager = Mock()
+        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+        mock_agent._step_display_data = {}
+
+        mock_plan_response = llm_response_factory(content="Thought 1: plan\nAction: move")
+        mock_exec_response = llm_response_factory(content="executor response")
+        mock_agent.llm.generate = Mock(side_effect=[mock_plan_response, mock_exec_response])
+
+        reasoning = CoTReasoning(mock_agent)
+        obs = Observation(step=1, self_state={}, local_state={})
+        expected_plan_prompt = reasoning.get_cot_system_prompt(obs)
+
+        reasoning.plan(obs=obs)
+
+        assert mock_agent.llm.system_prompt == "base-system-prompt"
+        assert (
+            mock_agent.llm.generate.call_args_list[0].kwargs["system_prompt"]
+            == expected_plan_prompt
+        )
+        assert (
+            mock_agent.llm.generate.call_args_list[1].kwargs["system_prompt"]
+            == "You are an executor that executes the plan given to you in the prompt through tool calls."
+        )

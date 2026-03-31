@@ -1,4 +1,6 @@
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
+
+import pytest
 
 from mesa_llm.reasoning.reasoning import (
     Observation,
@@ -75,6 +77,7 @@ class TestReasoningBase:
             prompt=chaining_message,
             tool_schema=[{"schema": "example"}],
             tool_choice="required",
+            system_prompt="You are an executor that executes the plan given to you in the prompt through tool calls.",
         )
         # Assert that the tool manager was asked for the correct schema
         mock_agent.tool_manager.get_all_tools_schema.assert_called_once_with(
@@ -85,6 +88,43 @@ class TestReasoningBase:
         assert result_plan.step == 5
         assert result_plan.llm_plan.content == "Final LLM message"
         assert result_plan.ttl == 1
+
+    def test_execute_tool_call_does_not_mutate_llm_prompt(
+        self, llm_response_factory, mock_agent
+    ):
+        """Executor prompt should be scoped to call kwargs, not shared state."""
+        mock_agent.model.steps = 5
+        mock_agent.llm.system_prompt = "base-system-prompt"
+        mock_agent.llm.generate.return_value = llm_response_factory(content="ok")
+        mock_agent.tool_manager.get_all_tools_schema.return_value = []
+
+        class ConcreteReasoning(Reasoning):
+            def plan(self, prompt=None, obs=None, ttl=1, selected_tools=None):
+                pass
+
+        reasoning = ConcreteReasoning(agent=mock_agent)
+        reasoning.execute_tool_call("Execute the plan.")
+
+        assert mock_agent.llm.system_prompt == "base-system-prompt"
+
+    @pytest.mark.asyncio
+    async def test_aexecute_tool_call_does_not_mutate_llm_prompt(
+        self, llm_response_factory, mock_agent
+    ):
+        """Async executor prompt should be scoped to call kwargs, not shared state."""
+        mock_agent.model.steps = 5
+        mock_agent.llm.system_prompt = "base-system-prompt"
+        mock_agent.llm.agenerate = AsyncMock(return_value=llm_response_factory(content="ok"))
+        mock_agent.tool_manager.get_all_tools_schema.return_value = []
+
+        class ConcreteReasoning(Reasoning):
+            def plan(self, prompt=None, obs=None, ttl=1, selected_tools=None):
+                pass
+
+        reasoning = ConcreteReasoning(agent=mock_agent)
+        await reasoning.aexecute_tool_call("Execute the plan.")
+
+        assert mock_agent.llm.system_prompt == "base-system-prompt"
 
     def test_execute_tool_call_propagates_ttl(self):
         """Test that execute_tool_call propagates caller-provided TTL."""

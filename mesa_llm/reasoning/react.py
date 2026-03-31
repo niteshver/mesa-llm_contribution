@@ -71,7 +71,7 @@ class ReActReasoning(Reasoning):
             obs = self.agent.generate_obs()
 
         # ---------------- prepare the prompt ----------------
-        self.agent.llm.system_prompt = self.get_react_system_prompt()
+        react_system_prompt = self.get_react_system_prompt()
         prompt_list = self.get_react_prompt(obs)
 
         # Add user prompt (explicit prompt takes precedence over default step prompt)
@@ -92,6 +92,7 @@ class ReActReasoning(Reasoning):
             tool_schema=selected_tools_schema,
             tool_choice="none",
             response_format=ReActOutput,
+            system_prompt=react_system_prompt,
         )
 
         formatted_response = json.loads(rsp.choices[0].message.content)
@@ -121,7 +122,7 @@ class ReActReasoning(Reasoning):
             obs = await self.agent.agenerate_obs()
 
         # ---------------- prepare the prompt ----------------
-        self.agent.llm.system_prompt = self.get_react_system_prompt()
+        react_system_prompt = self.get_react_system_prompt()
         prompt_list = self.get_react_prompt(obs)
 
         # Add user prompt (explicit prompt takes precedence over default step prompt)
@@ -143,6 +144,7 @@ class ReActReasoning(Reasoning):
             tool_schema=selected_tools_schema,
             tool_choice="none",
             response_format=ReActOutput,
+            system_prompt=react_system_prompt,
         )
 
         formatted_response = json.loads(rsp.choices[0].message.content)

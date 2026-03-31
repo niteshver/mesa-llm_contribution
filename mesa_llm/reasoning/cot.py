@@ -115,11 +115,11 @@ class CoTReasoning(Reasoning):
         )
         system_prompt = self.get_cot_system_prompt(obs)
 
-        llm.system_prompt = system_prompt
         rsp = llm.generate(
             prompt=prompt,
             tool_schema=self.agent.tool_manager.get_all_tools_schema(selected_tools),
             tool_choice="none",
+            system_prompt=system_prompt,
         )
 
         chaining_message = rsp.choices[0].message.content
@@ -130,12 +130,12 @@ class CoTReasoning(Reasoning):
         # Pass plan content to agent for display
         if hasattr(self.agent, "_step_display_data"):
             self.agent._step_display_data["plan_content"] = chaining_message
-        system_prompt = "You are an executor that executes the plan given to you in the prompt through tool calls."
-        llm.system_prompt = system_prompt
+        executor_system_prompt = "You are an executor that executes the plan given to you in the prompt through tool calls."
         rsp = llm.generate(
             prompt=chaining_message,
             tool_schema=self.agent.tool_manager.get_all_tools_schema(selected_tools),
             tool_choice="required",
+            system_prompt=executor_system_prompt,
         )
         response_message = rsp.choices[0].message
         cot_plan = Plan(step=step, llm_plan=response_message, ttl=ttl)
@@ -174,12 +174,12 @@ class CoTReasoning(Reasoning):
             type="Observation", content={"content": obs_str}
         )
         system_prompt = self.get_cot_system_prompt(obs)
-        llm.system_prompt = system_prompt
 
         rsp = await llm.agenerate(
             prompt=prompt,
             tool_schema=self.agent.tool_manager.get_all_tools_schema(selected_tools),
             tool_choice="none",
+            system_prompt=system_prompt,
         )
 
         chaining_message = rsp.choices[0].message.content
@@ -190,12 +190,12 @@ class CoTReasoning(Reasoning):
         # Pass plan content to agent for display
         if hasattr(self.agent, "_step_display_data"):
             self.agent._step_display_data["plan_content"] = chaining_message
-        system_prompt = "You are an executor that executes the plan given to you in the prompt through tool calls."
-        llm.system_prompt = system_prompt
+        executor_system_prompt = "You are an executor that executes the plan given to you in the prompt through tool calls."
         rsp = await llm.agenerate(
             prompt=chaining_message,
             tool_schema=self.agent.tool_manager.get_all_tools_schema(selected_tools),
             tool_choice="required",
+            system_prompt=executor_system_prompt,
         )
         response_message = rsp.choices[0].message
         cot_plan = Plan(step=step, llm_plan=response_message, ttl=ttl)
