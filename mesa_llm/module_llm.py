@@ -73,6 +73,16 @@ class ModuleLLM:
                     f"No API key found for {provider}. Please set the {provider}_API_KEY environment variable (e.g., in your .env file)."
                 ) from err
 
+            try:
+                litellm.get_model_info(model=self.llm_model)
+            except Exception as e:
+                raise ValueError(
+                    f"Invalid or unsupported model '{self.llm_model}' for provider "
+                    f"'{provider.lower()}'. Details: {e}. "
+                    "Please verify the model name and provider prefix, and if you are "
+                    f"using a custom endpoint set the correct api_base (current: {self.api_base})."
+                ) from e
+
         if not litellm.supports_function_calling(model=self.llm_model):
             logger.warning(
                 "%s does not support function calling. This model may not be able to use tools. Please check the model documentation at https://docs.litellm.ai/docs/providers for more information.",

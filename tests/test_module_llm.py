@@ -10,6 +10,14 @@ from mesa_llm.module_llm import ModuleLLM
 class TestModuleLLM:
     """Test ModuleLLM class"""
 
+    @pytest.fixture(autouse=True)
+    def _mock_model_catalog_checks(self, monkeypatch):
+        """Keep model validation deterministic in unit tests."""
+
+        monkeypatch.setattr(
+            "mesa_llm.module_llm.litellm.get_model_info", lambda model: {}
+        )
+
     def test_missing_provider_prefix(self):
         """ModuleLLM should raise ValueError when llm_model has no provider prefix."""
         with pytest.raises(ValueError, match="Invalid model format"):
@@ -83,10 +91,37 @@ class TestModuleLLM:
         messages = llm._build_messages(prompt=None)
         assert messages == [{"role": "system", "content": ""}]
 
+    def test_model_name_validity(self):
+        # Test initialization with invalid model format
+
+        with pytest.raises(ValueError, match="Invalid model format"):
+            ModuleLLM(llm_model="gpt-4o")
+
+        llm = ModuleLLM(llm_model="openai/gpt-4o")
+        assert llm.llm_model == "openai/gpt-4o"
+
+        llm = ModuleLLM(llm_model="ollama/llama2")
+        assert llm.llm_model == "ollama/llama2"
+
+    def test_invalid_model_name_has_descriptive_error(self, monkeypatch):
+        def _raise_unmapped(model):
+            raise Exception("This model isn't mapped yet")
+
+        monkeypatch.setattr(
+            "mesa_llm.module_llm.litellm.get_model_info", _raise_unmapped
+        )
+
+        with pytest.raises(ValueError, match="Invalid or unsupported model"):
+            ModuleLLM(llm_model="openai/not-a-real-model")
+
+        with pytest.raises(ValueError, match="Invalid or unsupported model"):
+            ModuleLLM(llm_model="openai/get-4o")
+
     def test_generate(self, monkeypatch, llm_response_factory):
         monkeypatch.setattr(
             "mesa_llm.module_llm.completion", lambda **kwargs: llm_response_factory()
         )
+
         # Test generate with string prompt
         llm = ModuleLLM(llm_model="openai/gpt-4o")
         response = llm.generate(prompt="Hello, how are you?")
