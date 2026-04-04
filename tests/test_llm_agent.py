@@ -18,7 +18,7 @@ from mesa_llm.reasoning.react import ReActReasoning
 def test_apply_plan_adds_to_memory(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(3, 3, torus=False)
 
         def add_agent(self, pos):
@@ -73,7 +73,7 @@ def test_apply_plan_preserves_multiple_tool_calls(monkeypatch):
 
     class DummyModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(5, 5, torus=False)
 
     model = DummyModel()
@@ -130,7 +130,7 @@ async def test_aapply_plan_preserves_multiple_tool_calls(monkeypatch):
 
     class DummyModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(5, 5, torus=False)
 
     model = DummyModel()
@@ -185,7 +185,7 @@ async def test_aapply_plan_preserves_multiple_tool_calls(monkeypatch):
 def test_generate_obs_with_one_neighbor(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
-            super().__init__(seed=45)
+            super().__init__(rng=45)
             self.grid = MultiGrid(3, 3, torus=False)
 
         def add_agent(self, pos, agent_class=LLMAgent):
@@ -241,6 +241,79 @@ def test_generate_obs_with_one_neighbor(monkeypatch):
 def test_send_message_updates_both_agents_memory(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
+            super().__init__(rng=45)
+            self.grid = MultiGrid(3, 3, torus=False)
+
+        def add_agent(self, pos, agent_class=LLMAgent):
+            system_prompt = "You are an agent in a simulation."
+            agents = agent_class.create_agents(
+                self,
+                n=1,
+                reasoning=lambda agent: None,
+                system_prompt=system_prompt,
+                vision=-1,
+                internal_state=["test_state"],
+            )
+            x, y = pos
+            agent = agents.to_list()[0]
+            self.grid.place_agent(agent, (x, y))
+            return agent
+
+    model = DummyModel()
+    sender = model.add_agent((0, 0))
+    sender.memory = ShortTermMemory(
+        agent=sender,
+        n=5,
+        display=True,
+    )
+    sender.unique_id = 1
+
+    recipient = model.add_agent((1, 1))
+    recipient.memory = ShortTermMemory(
+        agent=recipient,
+        n=5,
+        display=True,
+    )
+    recipient.unique_id = 2
+
+    recorded_calls = []
+
+    def fake_add_to_memory(*args, **kwargs):
+        recorded_calls.append(("sender", kwargs))
+
+    def fake_recipient_add_to_memory(*args, **kwargs):
+        recorded_calls.append(("recipient", kwargs))
+
+    # monkeypatch both agents' memory modules
+    monkeypatch.setattr(sender.memory, "add_to_memory", fake_add_to_memory)
+    monkeypatch.setattr(recipient.memory, "add_to_memory", fake_recipient_add_to_memory)
+
+    result = sender.send_message("hello", recipients=[recipient])
+    pattern = r"LLMAgent 1 → \[<mesa_llm\.llm_agent\.LLMAgent object at 0x[0-9A-Fa-f]+>\] : hello"
+    assert re.match(pattern, result)
+
+    # sender + recipient memory => should be called twice
+    assert len(recorded_calls) == 2
+    sender_call = next(call for label, call in recorded_calls if label == "sender")
+    recipient_call = next(
+        call for label, call in recorded_calls if label == "recipient"
+    )
+    assert sender_call["type"] == "message"
+    assert sender_call["content"]["message"] == "hello"
+    assert sender_call["content"]["sender"] == sender.unique_id
+    assert sender_call["content"]["recipients"] == [recipient.unique_id]
+    assert recipient_call["type"] == "message"
+    assert recipient_call["content"]["message"] == "hello"
+    assert recipient_call["content"]["sender"] == sender.unique_id
+    assert "recipients" not in recipient_call["content"]
+
+
+@pytest.mark.asyncio
+async def test_asend_message_updates_both_agents_memory(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
+
+    class DummyModel(Model):
+        def __init__(self):
             super().__init__(seed=45)
             self.grid = MultiGrid(3, 3, torus=False)
 
@@ -276,29 +349,43 @@ def test_send_message_updates_both_agents_memory(monkeypatch):
     )
     recipient.unique_id = 2
 
-    # Track how many times add_to_memory is called
-    call_counter = {"count": 0}
+    recorded_calls = []
 
-    def fake_add_to_memory(*args, **kwargs):
-        call_counter["count"] += 1
+    async def fake_aadd_to_memory(*args, **kwargs):
+        recorded_calls.append(("sender", kwargs))
 
-    # monkeypatch both agents' memory modules
-    monkeypatch.setattr(sender.memory, "add_to_memory", fake_add_to_memory)
-    monkeypatch.setattr(recipient.memory, "add_to_memory", fake_add_to_memory)
+    async def fake_recipient_aadd_to_memory(*args, **kwargs):
+        recorded_calls.append(("recipient", kwargs))
 
-    result = sender.send_message("hello", recipients=[recipient])
+    monkeypatch.setattr(sender.memory, "aadd_to_memory", fake_aadd_to_memory)
+    monkeypatch.setattr(
+        recipient.memory, "aadd_to_memory", fake_recipient_aadd_to_memory
+    )
+
+    result = await sender.asend_message("hello", recipients=[recipient])
     pattern = r"LLMAgent 1 → \[<mesa_llm\.llm_agent\.LLMAgent object at 0x[0-9A-Fa-f]+>\] : hello"
     assert re.match(pattern, result)
 
-    # sender + recipient memory => should be called twice
-    assert call_counter["count"] == 2
+    assert len(recorded_calls) == 2
+    sender_call = next(call for label, call in recorded_calls if label == "sender")
+    recipient_call = next(
+        call for label, call in recorded_calls if label == "recipient"
+    )
+    assert sender_call["type"] == "message"
+    assert sender_call["content"]["message"] == "hello"
+    assert sender_call["content"]["sender"] == sender.unique_id
+    assert sender_call["content"]["recipients"] == [recipient.unique_id]
+    assert recipient_call["type"] == "message"
+    assert recipient_call["content"]["message"] == "hello"
+    assert recipient_call["content"]["sender"] == sender.unique_id
+    assert "recipients" not in recipient_call["content"]
 
 
 @pytest.mark.asyncio
 async def test_aapply_plan_adds_to_memory(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(3, 3, torus=False)
 
         def add_agent(self, pos):
@@ -345,7 +432,7 @@ async def test_aapply_plan_adds_to_memory(monkeypatch):
 async def test_agenerate_obs_with_one_neighbor(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
-            super().__init__(seed=45)
+            super().__init__(rng=45)
             self.grid = MultiGrid(3, 3, torus=False)
 
         def add_agent(self, pos):
@@ -397,7 +484,7 @@ async def test_async_wrapper_calls_pre_and_post(monkeypatch):
 
     class DummyModel(Model):
         def __init__(self):
-            super().__init__(seed=1)
+            super().__init__(rng=1)
             self.grid = MultiGrid(3, 3, torus=False)
 
     model = DummyModel()
@@ -453,7 +540,7 @@ def _make_agent(model, vision=0, internal_state=None):
 
 def test_safer_cell_access_agent_with_cell_no_pos(monkeypatch):
     """Agent location falls back to cell.coordinate when pos=None."""
-    model = Model(seed=42)
+    model = Model(rng=42)
     agent = _make_agent(model)
     agent.pos = None
     agent.cell = MockCell(coordinate=(3, 4))
@@ -466,7 +553,7 @@ def test_safer_cell_access_agent_with_cell_no_pos(monkeypatch):
 
 def test_safer_cell_access_agent_without_cell_or_pos(monkeypatch):
     """Agent location returns None gracefully when neither pos nor cell exists."""
-    model = Model(seed=42)
+    model = Model(rng=42)
     agent = _make_agent(model)
     agent.pos = None
     if hasattr(agent, "cell"):
@@ -483,7 +570,7 @@ def test_safer_cell_access_neighbor_with_cell_no_pos(monkeypatch):
 
     class GridModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(3, 3, torus=False)
 
     model = GridModel()
@@ -516,7 +603,7 @@ def test_safer_cell_access_neighbor_without_cell_or_pos(monkeypatch):
 
     class GridModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(3, 3, torus=False)
 
     model = GridModel()
@@ -550,7 +637,7 @@ def test_generate_obs_with_continuous_space(monkeypatch):
 
     class ContModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.space = ContinuousSpace(x_max=10.0, y_max=10.0, torus=False)
 
     model = ContModel()
@@ -586,7 +673,7 @@ def test_generate_obs_vision_all_agents(monkeypatch):
 
     class GridModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(10, 10, torus=False)
 
     model = GridModel()
@@ -616,7 +703,7 @@ def test_generate_obs_vision_all_agents(monkeypatch):
 
 def test_generate_obs_no_grid_with_vision(monkeypatch):
     """When the model has no grid/space, generate_obs falls back to empty neighbors."""
-    model = Model(seed=42)  # no grid, no space
+    model = Model(rng=42)  # no grid, no space
     agents = LLMAgent.create_agents(
         model,
         n=2,
@@ -648,7 +735,7 @@ def test_generate_obs_standard_grid_with_vision_radius(monkeypatch):
 
     class GridModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             # Reverted to width/height for SingleGrid
             self.grid = SingleGrid(width=5, height=5, torus=False)
 
@@ -683,7 +770,7 @@ def test_generate_obs_orthogonal_grid_branches(monkeypatch):
 
     class OrthoModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             # Pass self.random to ensure reproducibility
             self.grid = OrthogonalMooreGrid(dimensions=(5, 5), random=self.random)
 
@@ -723,7 +810,7 @@ def test_generate_obs_with_non_llm_neighbor(monkeypatch):
 
     class MixedModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(5, 5, torus=False)
 
     model = MixedModel()
@@ -756,7 +843,7 @@ async def test_agenerate_obs_with_non_llm_neighbor(monkeypatch):
 
     class MixedModel(Model):
         def __init__(self):
-            super().__init__(seed=42)
+            super().__init__(rng=42)
             self.grid = MultiGrid(5, 5, torus=False)
 
     model = MixedModel()
@@ -789,7 +876,7 @@ def _make_send_message_model(monkeypatch):
 
     class DummyModel(Model):
         def __init__(self):
-            super().__init__(seed=45)
+            super().__init__(rng=45)
             self.grid = MultiGrid(3, 3, torus=False)
 
         def add_agent(self, pos):
@@ -833,13 +920,13 @@ def test_send_message_stores_serializable_ids(monkeypatch):
     sender.send_message("hello", recipients=[recipient])
 
     assert captured["sender"] == 10
-    assert captured["recipients"] == [20]
     assert captured["message"] == "hello"
 
     # Must not raise TypeError when serializing
     data = json.loads(json.dumps(captured))
     assert data["sender"] == 10
-    assert data["recipients"] == [20]
+    assert "recipients" not in data  # recipients only stored in sender, not recipient
+    assert data["message"] == "hello"
 
 
 @pytest.mark.asyncio
@@ -861,9 +948,12 @@ async def test_asend_message_stores_serializable_ids(monkeypatch):
     await sender.asend_message("hello", recipients=[recipient])
 
     assert captured["sender"] == 10
-    assert captured["recipients"] == [20]
+    assert (
+        "recipients" not in captured
+    )  # recipients only stored in sender, not recipient
     assert captured["message"] == "hello"
 
     data = json.loads(json.dumps(captured))
     assert data["sender"] == 10
-    assert data["recipients"] == [20]
+    assert data["message"] == "hello"
+    assert "recipients" not in data
