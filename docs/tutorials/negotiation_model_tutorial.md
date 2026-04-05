@@ -140,7 +140,7 @@ class Seller(LLMAgent):
         plan = self.reasoning.plan(
             prompt=prompt,
             obs=observation,
-            selected_tools=["speak_to"]
+            selected_tools=["speak_to"]        # Inbuilt tool
         )
 
         # Apply the plan.
