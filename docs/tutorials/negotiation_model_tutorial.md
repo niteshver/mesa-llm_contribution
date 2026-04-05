@@ -145,7 +145,7 @@ class Seller(LLMAgent):
 
         # Apply the plan.
         # In this tutorial, actions are excuted using tools
-        
+
         self.apply_plan(plan)
 ```
 
@@ -153,7 +153,7 @@ class Seller(LLMAgent):
 ### Each buyer:
 - Has a different budget
 - Reasons independently using `ReActReasoning`
-- Use inbuilt tools `teleport_to_location` if not engaed with seller  
+- Use inbuilt tools `teleport_to_location` if not engaed with seller
 
 ``` python
 # ---------------- BUYER ----------------
@@ -208,7 +208,7 @@ class Buyer(LLMAgent):
         plan = self.reasoning.plan(
             prompt=prompt,
             obs=observation,
-            selected_tools=["teleport_to_location","speak_to"]    # Inbuilts tools 
+            selected_tools=["teleport_to_location","speak_to"]    # Inbuilts tools
         )
         self.apply_plan(plan)
 ```
@@ -238,12 +238,12 @@ class NegotiationModel(Model):
 
     def __init__(
         self,
-        initial_buyers: int = 2,        
-        width: int = 5, 
+        initial_buyers: int = 2,
+        width: int = 5,
         height: int = 5,
         llm_model: str = "ollama/llama3.1:latest",
         seed=None,
-    ):          
+    ):
         # Initialize the Mesa model.
         # The seed is optional and can be used for reproducibility.
         # Initialize model with dimension & grid
@@ -299,7 +299,7 @@ class NegotiationModel(Model):
             llm_model=llm_model,
             system_prompt="You are a buyer.",
             internal_state={"budget": 70},
-        ) 
+        )
         # Place low budget agent on random position on grid
         if low_budget_agents:
             x = self.rng.integers(0, self.grid.width, size=(lower_budget_buyers,))
@@ -377,5 +377,5 @@ Try the following exercises to better understand agent communication and reasoni
    Run the `Model` for more steps and observe how agent messaging influences
    reasoning over time.
 
-   
+
 
