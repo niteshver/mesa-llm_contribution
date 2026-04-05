@@ -99,7 +99,7 @@ class Seller(LLMAgent):
         # across multiple simulation steps.
         self.memory = STLTMemory(
             agent=self,
-            llm_model="ollama/llama3.1:latest ",
+            llm_model="ollama/llama3.1:latest",
         )
 
     def step(self):
