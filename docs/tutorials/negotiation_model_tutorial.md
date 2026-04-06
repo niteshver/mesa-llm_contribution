@@ -10,6 +10,7 @@ The goal here is **not to replicate** the original example, but to present a **s
 Key differences from the original example include:
 - A reduced number of agents
 - Emphasis on understanding ReAct reasoning output
+- No custom tools
 
 
 ## Model Description
