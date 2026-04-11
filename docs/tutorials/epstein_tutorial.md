@@ -80,7 +80,7 @@ from mesa_llm.reasoning.reasoning import Reasoning
 ## Creating the CitizenState
 Using the previously dependencies, We define `CitizenState` Class. Each agent have a state, `QUIET` is the default state, State can be change during execution.
 
-``` python 
+``` python
 class CitizenState(Enum):
     QUIET = 1
     ACTIVE = 2
@@ -95,7 +95,7 @@ citizen_tool_manager = ToolManager()
 ```
 The `@tool` decorator is used to convert Python functions into **LLM-compatible tools**. It automatically generates the required JSON schema using the function’s type hints and `docstrings`.
 
-#### While creating custom tools, keep these things in mind:   
+#### While creating custom tools, keep these things in mind:
 - Always create and assign a `Tool Manager` as you seen above
 - Use the `@tool` decorator to convert a normal Python function into an LLM-compatible tool
 - Always include a `docstring` in your function
@@ -525,7 +525,7 @@ class EpsteinModel(Model):
             n=initial_citizens,
             reasoning=reasoning,
             llm_model=llm_model,
-            system_prompt="",  
+            system_prompt="",
             vision=vision,
             internal_state=None,
             step_prompt="Move around and change your state if the conditions indicate it.",
@@ -558,7 +558,7 @@ if __name__ == "__main__":
     model = EpsteinModel()
 
     # Run the model for a fixed number of steps
-    # Each step activates all agents once and prints their reasoning output 
+    # Each step activates all agents once and prints their reasoning output
     for _ in range(3):
         model.step()
 ```
@@ -599,7 +599,7 @@ Try the following exercises to better understand Mesa-llm:
    Experiment with different `parameters` to see how behavior changes.
 
 4. **Change Prompt**
-   Modify the system prompt given to agents and Understand how prompts influence agent `reasoning` and decisions 
+   Modify the system prompt given to agents and Understand how prompts influence agent `reasoning` and decisions
 
 
 
