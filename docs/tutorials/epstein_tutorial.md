@@ -140,6 +140,7 @@ def change_state(agent, state: str) -> str:
     # Return confirmation (used in LLM tool feedback loop)
     return f"agent {agent.unique_id} changed state to {normalized_state}."
 
+cop_tool_manager = ToolManager()
 @tool(tool_manager=cop_tool_manager)
 def arrest_citizen(agent: "LLMAgent", citizen_id: int) -> str:
     """
