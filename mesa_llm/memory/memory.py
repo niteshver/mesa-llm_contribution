@@ -158,7 +158,9 @@ class Memory(ABC):
         self.display = display
 
         self.step_content: dict = {}
-        self.additive_event_types = set(additive_event_types or {"message", "action"})
+        if additive_event_types is None:
+            additive_event_types = {"message", "action"}
+        self.additive_event_types = set(additive_event_types)
 
     @abstractmethod
     def get_prompt_ready(self) -> str:

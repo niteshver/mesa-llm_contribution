@@ -131,6 +131,13 @@ class TestMemoryParent:
 
         assert memory.additive_event_types == {"message", "observation"}
 
+    def test_memory_init_empty_additive_event_types(self):
+        """An explicit empty additive config should stay empty."""
+        mock_agent = Mock()
+        memory = MemoryMock(agent=mock_agent, additive_event_types=[])
+
+        assert memory.additive_event_types == set()
+
     def test_add_to_memory(self, mock_agent):
         memory = MemoryMock(agent=mock_agent)
         # Test basic addition with observation
