@@ -151,10 +151,9 @@ class ReWOOReasoning(Reasoning):
             ttl=ttl,
         )
         # Count the number of tool calls in the response and set remaining_tool_calls
-        if hasattr(rewoo_plan.llm_plan, "tool_calls"):
-            self.remaining_tool_calls = len(rewoo_plan.llm_plan.tool_calls)
-        else:
-            self.remaining_tool_calls = 0
+        self.remaining_tool_calls = len(
+            getattr(rewoo_plan.llm_plan, "tool_calls", None) or []
+        )
         self.current_plan = rewoo_plan.llm_plan
 
         return rewoo_plan
@@ -211,10 +210,9 @@ class ReWOOReasoning(Reasoning):
             ttl=ttl,
         )
         # Count the number of tool calls in the response and set remaining_tool_calls
-        if hasattr(rewoo_plan.llm_plan, "tool_calls"):
-            self.remaining_tool_calls = len(rewoo_plan.llm_plan.tool_calls)
-        else:
-            self.remaining_tool_calls = 0
+        self.remaining_tool_calls = len(
+            getattr(rewoo_plan.llm_plan, "tool_calls", None) or []
+        )
         self.current_plan = rewoo_plan.llm_plan
 
         return rewoo_plan

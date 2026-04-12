@@ -233,6 +233,35 @@ class TestReWOOReasoning:
         assert isinstance(result, Plan)
         assert reasoning.remaining_tool_calls == 0
 
+    def test_plan_with_tool_calls_set_to_none(self, llm_response_factory, mock_agent):
+        """Test plan method when execution returns ``tool_calls=None``."""
+        mock_agent.step_prompt = "Default step prompt"
+        mock_agent.generate_obs.return_value = Observation(
+            step=1, self_state={}, local_state={}
+        )
+        mock_agent.memory = Mock()
+        mock_agent.memory.format_long_term.return_value = "Long term memory"
+        mock_agent.memory.format_short_term.return_value = "Short term memory"
+        mock_agent.memory.add_to_memory = Mock()
+        mock_agent.llm = Mock()
+        mock_agent.tool_manager = Mock()
+        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+
+        mock_plan_response = llm_response_factory(content="Test plan content")
+        mock_agent.llm.generate.return_value = mock_plan_response
+
+        mock_plan_with_none_tool_calls = Mock()
+        mock_plan_with_none_tool_calls.tool_calls = None
+        reasoning = ReWOOReasoning(mock_agent)
+        reasoning.execute_tool_call = Mock(
+            return_value=Plan(step=1, llm_plan=mock_plan_with_none_tool_calls)
+        )
+
+        result = reasoning.plan()
+
+        assert isinstance(result, Plan)
+        assert reasoning.remaining_tool_calls == 0
+
     def test_aplan_with_remaining_tool_calls(self, mock_agent):
         """Test aplan method when there are remaining tool calls."""
         mock_agent.generate_obs = Mock()
@@ -451,6 +480,34 @@ class TestReWOOReasoning:
         reasoning = ReWOOReasoning(mock_agent)
         reasoning.aexecute_tool_call = AsyncMock(
             return_value=Plan(step=1, llm_plan=mock_plan_without_tool_calls)
+        )
+
+        result = asyncio.run(reasoning.aplan("test prompt"))
+
+        assert isinstance(result, Plan)
+        assert reasoning.remaining_tool_calls == 0
+
+    def test_aplan_with_tool_calls_set_to_none(self, llm_response_factory, mock_agent):
+        """Test aplan method when execution returns ``tool_calls=None``."""
+        mock_agent.agenerate_obs = AsyncMock(
+            return_value=Observation(step=1, self_state={}, local_state={})
+        )
+        mock_agent.memory = Mock()
+        mock_agent.memory.format_long_term.return_value = "Long term memory"
+        mock_agent.memory.format_short_term.return_value = "Short term memory"
+        mock_agent.memory.add_to_memory = Mock()
+        mock_agent.llm = Mock()
+        mock_agent.tool_manager = Mock()
+        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+
+        mock_plan_response = llm_response_factory(content="Async plan content")
+        mock_agent.llm.agenerate = AsyncMock(return_value=mock_plan_response)
+
+        mock_plan_with_none_tool_calls = Mock()
+        mock_plan_with_none_tool_calls.tool_calls = None
+        reasoning = ReWOOReasoning(mock_agent)
+        reasoning.aexecute_tool_call = AsyncMock(
+            return_value=Plan(step=1, llm_plan=mock_plan_with_none_tool_calls)
         )
 
         result = asyncio.run(reasoning.aplan("test prompt"))
