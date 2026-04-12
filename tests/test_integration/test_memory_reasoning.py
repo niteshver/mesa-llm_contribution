@@ -671,7 +671,6 @@ class TestReWOOWithEpisodicMemory:
         assert entries[1].content["plan_execution"]["content"] == str(plan)
         assert entries[0].content["plan"]["importance"] == 3
         assert entries[1].content["plan_execution"]["importance"] == 3
-        assert memory.grade_event_importance.call_count == 1
-        assert memory.agrade_event_importance.await_count == 1
+        assert memory.agrade_event_importance.await_count == 2
         assert agent.llm.agenerate.await_count == 2
         agent.agenerate_obs.assert_awaited_once()
