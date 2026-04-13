@@ -107,7 +107,7 @@ class EpisodicMemory(Memory):
         - Nested: {"msg": {"importance": 5}}
         - Flat:   {"importance": 5}
         """
-        if "importance" in entry.content:  # Checks top-level keys
+        if "importance" in entry.content:
             val = entry.content["importance"]
             return val if isinstance(val, (int, float)) else 1
 

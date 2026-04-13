@@ -2,6 +2,7 @@
 
 import json
 import re
+import warnings
 
 import pytest
 from mesa.agent import Agent
@@ -427,6 +428,45 @@ async def test_async_wrapper_calls_pre_and_post(monkeypatch):
     assert calls["pre"] == 1
     assert calls["post"] == 1
     assert agent.user_called is True
+
+
+@pytest.mark.asyncio
+async def test_astep_fallback_warns_once_for_step_only_subclass(monkeypatch):
+    class StepOnlyAgent(LLMAgent):
+        def step(self):
+            self.step_calls = getattr(self, "step_calls", 0) + 1
+
+    class DummyModel(Model):
+        def __init__(self):
+            super().__init__(rng=1)
+            self.grid = MultiGrid(3, 3, torus=False)
+
+    model = DummyModel()
+
+    agent = StepOnlyAgent.create_agents(
+        model,
+        n=1,
+        reasoning=lambda agent: None,
+        system_prompt="test",
+        vision=-1,
+        internal_state=[],
+    ).to_list()[0]
+
+    monkeypatch.setattr(agent.memory, "process_step", lambda pre_step=False: None)
+
+    async def fake_aprocess_step(pre_step=False):
+        return None
+
+    monkeypatch.setattr(agent.memory, "aprocess_step", fake_aprocess_step)
+
+    with pytest.warns(RuntimeWarning, match="Override astep\\(\\)"):
+        await agent.astep()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        await agent.astep()
+
+    assert agent.step_calls == 2
 
 
 class MockCell:

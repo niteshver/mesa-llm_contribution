@@ -1,4 +1,4 @@
-import asyncio
+import warnings
 
 from mesa.agent import Agent
 from mesa.discrete_space import (
@@ -321,18 +321,26 @@ class LLMAgent(Agent):
         """
         Default asynchronous step method for parallel agent execution.
         Subclasses should override this method for custom async behavior.
-        If not overridden, falls back to calling the synchronous step() method
-        in a thread pool to avoid blocking the event loop.
+        If not overridden, falls back to calling the synchronous step() method.
         """
+        await self.apre_step()
 
         if hasattr(self, "step") and self.__class__.step != LLMAgent.step:
-            # Run sync step() in a thread to avoid blocking the event loop.
-            # Note: the wrapped step() already calls pre_step/post_step,
-            # so we don't call apre_step/apost_step here to avoid double execution.
-            await asyncio.to_thread(self.step)
-        else:
-            await self.apre_step()
-            await self.apost_step()
+            if not getattr(self.__class__, "_warned_sync_astep_fallback", False):
+                warnings.warn(
+                    (
+                        f"{self.__class__.__name__}.astep() is falling back to "
+                        "synchronous step(), which may block the asyncio event "
+                        "loop. Override astep() for non-blocking behavior or use "
+                        "threading parallel stepping."
+                    ),
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                self.__class__._warned_sync_astep_fallback = True
+            self.step()
+
+        await self.apost_step()
 
     def __init_subclass__(cls, **kwargs):
         """
