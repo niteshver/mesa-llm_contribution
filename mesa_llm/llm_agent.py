@@ -395,7 +395,8 @@ class LLMAgent(Agent):
         """
         await self.apre_step()
 
-        if hasattr(self, "step") and self.__class__.step != LLMAgent.step:
+        raw_step = getattr(self.__class__, "_raw_user_step", None)
+        if raw_step is not None:
             if not getattr(self.__class__, "_warned_sync_astep_fallback", False):
                 warnings.warn(
                     (
@@ -408,7 +409,7 @@ class LLMAgent(Agent):
                     stacklevel=2,
                 )
                 self.__class__._warned_sync_astep_fallback = True
-            self.step()
+            raw_step(self)
 
         await self.apost_step()
 
@@ -422,6 +423,9 @@ class LLMAgent(Agent):
         user_astep = cls.__dict__.get("astep")
 
         if user_step:
+            # Store the raw user step for the default astep() to call
+            # without the pre/post wrapper (astep handles its own pre/post)
+            cls._raw_user_step = user_step
 
             def wrapped(self, *args, **kwargs):
                 """
