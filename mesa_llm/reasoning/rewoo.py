@@ -154,11 +154,11 @@ class ReWOOReasoning(Reasoning):
         llm = self.agent.llm
         system_prompt = self.get_rewoo_system_prompt(self.current_obs)
 
-        llm.system_prompt = system_prompt
         rsp = llm.generate(
             prompt=prompt,
             tool_schema=self.agent.tool_manager.get_all_tools_schema(selected_tools),
             tool_choice="none",
+            system_prompt=system_prompt,
         )
 
         self.agent.memory.add_to_memory(
@@ -233,11 +233,11 @@ class ReWOOReasoning(Reasoning):
         llm = self.agent.llm
         system_prompt = self.get_rewoo_system_prompt(self.current_obs)
 
-        llm.system_prompt = system_prompt
         rsp = await llm.agenerate(
             prompt=prompt,
             tool_schema=self.agent.tool_manager.get_all_tools_schema(selected_tools),
             tool_choice="none",
+            system_prompt=system_prompt,
         )
 
         await self.agent.memory.aadd_to_memory(
