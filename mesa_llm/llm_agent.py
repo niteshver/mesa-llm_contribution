@@ -55,13 +55,19 @@ class LLMAgent(Agent):
         internal_state: list[str] | str | None = None,
         step_prompt: str | None = None,
         api_base: str | None = None,
+        budget_limit: float | None = None,
+        token_limit: int | None = None,
     ):
         super().__init__(model=model)
 
         self.model = model
         self.step_prompt = step_prompt
         self.llm = ModuleLLM(
-            llm_model=llm_model, system_prompt=system_prompt, api_base=api_base
+            llm_model=llm_model,
+            system_prompt=system_prompt,
+            api_base=api_base,
+            budget_limit=budget_limit,
+            token_limit=token_limit,
         )
 
         self.memory = STLTMemory(

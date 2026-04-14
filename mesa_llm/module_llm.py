@@ -10,6 +10,8 @@ from litellm.exceptions import (
 )
 from tenacity import AsyncRetrying, retry, retry_if_exception_type, wait_exponential
 
+from mesa_llm.usage_tracker import UsageTracker
+
 RETRYABLE_EXCEPTIONS = (
     APIConnectionError,
     Timeout,
@@ -32,6 +34,8 @@ class ModuleLLM:
         llm_model: str,
         api_base: str | None = None,
         system_prompt: str | None = None,
+        budget_limit: float | None = None,
+        token_limit: int | None = None,
     ):
         """
         Initialize the LLM module
@@ -41,6 +45,8 @@ class ModuleLLM:
                 "{provider}/{model}" (for example, "openai/gpt-4o").
             api_base: The API base to use if the LLM provider is Ollama
             system_prompt: The system prompt to use for the LLM
+            budget_limit: Maximum allowed cost in USD for LLM usage
+            token_limit: Maximum allowed total tokens for LLM usage
 
         Raises:
             ValueError: If llm_model is not in the expected "{provider}/{model}"
@@ -78,6 +84,9 @@ class ModuleLLM:
                 "%s does not support function calling. This model may not be able to use tools. Please check the model documentation at https://docs.litellm.ai/docs/providers for more information.",
                 self.llm_model,
             )
+
+        # Initialize usage tracker
+        self.usage_tracker = UsageTracker(budget_limit=budget_limit, token_limit=token_limit)
 
     def _build_messages(self, prompt: str | list[str] | None = None) -> list[dict]:
         """
@@ -178,6 +187,10 @@ class ModuleLLM:
         except RateLimitError as error:
             raise self._build_rate_limit_error(error) from error
 
+        # Track usage
+        if hasattr(response, 'usage') and response.usage:
+            self.usage_tracker.update_usage(response.usage, self.llm_model)
+
         return response
 
     async def agenerate(
@@ -211,4 +224,9 @@ class ModuleLLM:
                     response = await acompletion(**completion_kwargs)
                 except RateLimitError as error:
                     raise self._build_rate_limit_error(error) from error
+
+                # Track usage
+                if hasattr(response, 'usage') and response.usage:
+                    self.usage_tracker.update_usage(response.usage, self.llm_model)
+
         return response

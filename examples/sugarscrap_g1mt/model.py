@@ -41,6 +41,8 @@ class SugarScapeModel(Model):
         api_base: str | None = None,
         parallel_stepping=True,
         seed=None,
+        budget_limit: float | None = None,
+        token_limit: int | None = None,
     ):
         super().__init__(seed=seed)
         self.width = width
@@ -117,6 +119,8 @@ class SugarScapeModel(Model):
             internal_state=None,
             step_prompt="Observe your inventory and MRS. Move to the best resource or propose a trade.",
             api_base=api_base,
+            budget_limit=budget_limit,
+            token_limit=token_limit,
         )
 
         x_pos = self.rng.integers(0, self.grid.width, size=(initial_traders,))
@@ -167,6 +171,8 @@ if __name__ == "__main__":
         reasoning=Reasoning(),
         llm_model="openai/gpt-4o-mini",
         vision=2,
+        budget_limit=0.00005,
+        token_limit=150,
     )
 
     for _ in range(5):
