@@ -242,3 +242,30 @@ def speak_to(
         return f"Could not send message {message!r}: no matching recipients found."
 
     return "; ".join(status_parts)
+
+
+
+from mesa_llm.tools.tool_manager import add_tool_callback
+import random
+tool_list = [move_one_step,speak_to,teleport_to_location,]
+tool_list = add_tool_callback
+
+@tool
+def schedule_action(agent:"LLMAgent") -> str:
+    """
+    Agent can decide which tool use at x step.
+
+    Args:
+        tools_list: Decide which tool u want tpo excute at x step
+        agent: choose what u want
+
+    Returns: 
+        a tool call what agent want
+
+    """
+    
+    chosen_tool = random.randint(tool_list)
+    if chosen_tool not in tool_list:
+        raise ValueError (f"Chosen tool {chosen_tool} not in list")
+    
+
