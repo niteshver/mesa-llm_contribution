@@ -30,11 +30,18 @@ class ReActReasoning(Reasoning):
         super().__init__(agent=agent)
 
     def get_react_system_prompt(self) -> str:
-        system_prompt = """
+        agent_persona = getattr(self.agent, "system_prompt", None)
+        persona_section = ""
+        if isinstance(agent_persona, str) and agent_persona.strip():
+            persona_section = (
+                f"\n        # Agent Persona\n        {agent_persona.strip()}\n"
+            )
+        system_prompt = f"""
         You are an autonomous agent in a simulation environment.
         You can think about your situation and describe your plan.
         Use your short-term and/or long-term memory to guide your behavior.
         You should also use the current observation you have made of the environrment to take suitable actions.
+{persona_section}
 
         # Instructions
         Based on the information given to you, think about what you should do with proper reasoning, And then decide your plan of action. Respond in the

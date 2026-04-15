@@ -21,6 +21,7 @@ class TestCoTReasoning:
 
     def test_get_cot_system_prompt_with_memory(self, mock_agent):
         """Test get_cot_system_prompt with memory methods available."""
+        mock_agent.system_prompt = "Agent persona"
         mock_agent.memory = Mock()
         mock_agent.memory.format_long_term.return_value = "Long term memory content"
         mock_agent.memory.format_short_term.return_value = "Short term memory content"
@@ -32,9 +33,25 @@ class TestCoTReasoning:
 
         assert "Long term memory content" in prompt
         assert "Short term memory content" in prompt
+        assert "Agent Persona" in prompt
+        assert "Agent persona" in prompt
         assert "Current Observation" in prompt
         assert "Thought 1:" in prompt
         assert "Action:" in prompt
+
+    def test_get_cot_system_prompt_omits_empty_persona(self, mock_agent):
+        """Empty agent persona should not add a persona section."""
+        mock_agent.system_prompt = None
+        mock_agent.memory = Mock()
+        mock_agent.memory.format_long_term.return_value = "Long term memory content"
+        mock_agent.memory.format_short_term.return_value = "Short term memory content"
+
+        reasoning = CoTReasoning(mock_agent)
+        obs = Observation(step=1, self_state={"test": "data"}, local_state={})
+
+        prompt = reasoning.get_cot_system_prompt(obs)
+
+        assert "Agent Persona" not in prompt
 
     def test_plan_returns_proper_plan(self, monkeypatch, llm_response_factory):
         """

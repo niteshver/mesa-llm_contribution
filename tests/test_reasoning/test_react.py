@@ -34,12 +34,24 @@ class TestReActReasoning:
 
     def test_get_react_system_prompt(self, mock_agent):
         """Test get_react_system_prompt method."""
+        mock_agent.system_prompt = "Agent persona"
         reasoning = ReActReasoning(mock_agent)
 
         prompt = reasoning.get_react_system_prompt()
 
+        assert "Agent Persona" in prompt
+        assert "Agent persona" in prompt
         assert "reasoning:" in prompt
         assert "action:" in prompt
+
+    def test_get_react_system_prompt_omits_empty_persona(self, mock_agent):
+        """Empty agent persona should not add a persona section."""
+        mock_agent.system_prompt = None
+        reasoning = ReActReasoning(mock_agent)
+
+        prompt = reasoning.get_react_system_prompt()
+
+        assert "Agent Persona" not in prompt
 
     def test_get_react_prompt_with_observation(self, mock_agent):
         """Test get_react_prompt with observation."""

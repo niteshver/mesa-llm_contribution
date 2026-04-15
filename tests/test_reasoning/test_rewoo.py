@@ -31,6 +31,7 @@ class TestReWOOReasoning:
 
     def test_get_rewoo_system_prompt(self, mock_agent):
         """Test get_rewoo_system_prompt."""
+        mock_agent.system_prompt = "Agent persona"
         mock_agent.memory = Mock()
         mock_agent.memory.format_long_term.return_value = "Long term memory content"
         mock_agent.memory.format_short_term.return_value = "Short term memory content"
@@ -44,10 +45,28 @@ class TestReWOOReasoning:
 
         assert "Long term memory content" in prompt
         assert "Short term memory content" in prompt
+        assert "Agent Persona" in prompt
+        assert "Agent persona" in prompt
         assert "Current Observation" in prompt
         assert "plan" in prompt
         assert "step_1" in prompt
         assert "contingency" in prompt
+
+    def test_get_rewoo_system_prompt_omits_empty_persona(self, mock_agent):
+        """Empty agent persona should not add a persona section."""
+        mock_agent.system_prompt = None
+        mock_agent.memory = Mock()
+        mock_agent.memory.format_long_term.return_value = "Long term memory content"
+        mock_agent.memory.format_short_term.return_value = "Short term memory content"
+
+        reasoning = ReWOOReasoning(mock_agent)
+        reasoning.current_obs = Observation(
+            step=1, self_state={"test": "data"}, local_state={}
+        )
+
+        prompt = reasoning.get_rewoo_system_prompt(reasoning.current_obs)
+
+        assert "Agent Persona" not in prompt
 
     def test_plan_with_remaining_tool_calls(self, mock_agent):
         """Test plan method when there are remaining tool calls."""
