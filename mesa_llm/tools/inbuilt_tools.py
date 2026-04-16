@@ -245,27 +245,41 @@ def speak_to(
 
 
 
-from mesa_llm.tools.tool_manager import add_tool_callback
-import random
-tool_list = [move_one_step,speak_to,teleport_to_location,]
-tool_list = add_tool_callback
-
 @tool
-def schedule_action(agent:"LLMAgent") -> str:
+def schedule_action(
+    agent: "LLMAgent",
+    tool_name: str,
+    tool_args: dict = None,
+    steps_ahead: int = 1
+) -> str:
     """
-    Agent can decide which tool use at x step.
+    Schedule any tool (inbuilt or custom) to be executed after a specified number of steps. The schedule is stored in the agent's memory for future execution.
 
     Args:
-        tools_list: Decide which tool u want tpo excute at x step
-        agent: choose what u want
+        agent: Provided automatically.
+        tool_name: The name of the tool to schedule (must be registered).
+        tool_args: Arguments to pass to the tool (as a dictionary).
+        steps_ahead: How many steps in the future to execute the tool (default: 1).
 
-    Returns: 
-        a tool call what agent want
-
+    Returns:
+        Confirmation message with scheduling details.
     """
-    
-    chosen_tool = random.randint(tool_list)
-    if chosen_tool not in tool_list:
-        raise ValueError (f"Chosen tool {chosen_tool} not in list")
-    
+    if tool_args is None:
+        tool_args = {}
+    # Check if tool exists
+    if not agent.tool_manager.has_tool(tool_name):
+        return f"Tool '{tool_name}' is not registered." 
+    # Store schedule in memory
+    schedule_entry = {
+        "tool_name": tool_name,
+        "tool_args": tool_args,
+        "execute_at_step": agent.model.steps + steps_ahead,
+    }
+    agent.memory.add_to_memory(type="scheduled_action", content=schedule_entry)
+    return (
+        f"Scheduled tool '{tool_name}' with args {tool_args} to run in {steps_ahead} step(s) "
+        f"(at step {agent.model.steps + steps_ahead})."
+    )
+
+
 
