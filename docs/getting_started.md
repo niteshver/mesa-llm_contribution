@@ -12,10 +12,13 @@ If you want a high-level understanding of Mesa-LLM structure and capabilities, s
 ## LLM Backend Setup
 Mesa-LLM leverages various LLM providers through the LiteLLM library. To run the examples and tutorials, you typically need one of the following:
 
-- **Local LLM (Default in Tutorials)**: [Ollama](https://ollama.com) is used for local inference. It must be installed and running on your machine.
+- **Local LLM (Default in Tutorials)**: [Ollama](https://ollama.com) is used for local inference. It must be installed, and the local server must be running at `http://localhost:11434`.
+
 - **Cloud LLM**: Providers like OpenAI, Anthropic, or Gemini require an API key set in your environment variables.
 
 Refer to the [Prerequisites section](tutorials/first_model.md#prerequisites) in the first tutorial for more details on Ollama setup.
+
+For provider-specific setup, including cloud API keys and custom Ollama endpoints, see [Basic LLM Setup](apis/module_llm.md#basic-llm-setup) and [Custom API Endpoints](apis/module_llm.md#custom-api-endpoints).
 
 ## Tutorials
 If you want to learn Mesa-LLM step by step, follow these tutorials:
