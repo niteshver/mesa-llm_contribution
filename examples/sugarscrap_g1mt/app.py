@@ -47,11 +47,14 @@ model_params = {
 }
 
 model = SugarScapeModel(
+    initial_traders=model_params["initial_traders"],
+    initial_resources=model_params["initial_resources"],
     width=model_params["width"],
     height=model_params["height"],
     reasoning=model_params["reasoning"],
     llm_model=model_params["llm_model"],
     vision=model_params["vision"],
+    api_base=model_params["api_base"],
     seed=model_params["seed"]["value"],
     parallel_stepping=model_params["parallel_stepping"],
 )
@@ -62,13 +65,13 @@ def agent_potrayal(agent):
         return
 
     portrayal = {
-        "shape": "square",
+        "shape": "circle",
         "filled": True,
         "size": 20,
         "layer": 1,
     }
 
-    if isinstance(agent, student):
+    if isinstance(agent, Trader):
         portrayal["color"] = "black"
         portrayal["size"] = 50
         portrayal["text"] = f"S:{agent.sugar} Sp:{agent.spice}"
@@ -118,7 +121,7 @@ if __name__ == "__main__":
             chart_component,
         ],
         model_params=model_params,
-        name="Student_School",
+        name="SugarScape G1MT Example",
     )
 
     """
