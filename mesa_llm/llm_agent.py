@@ -55,6 +55,7 @@ class LLMAgent(Agent):
         internal_state: list[str] | str | None = None,
         step_prompt: str | None = None,
         api_base: str | None = None,
+        max_tool_retries: int = 1,
     ):
         super().__init__(model=model)
 
@@ -76,6 +77,7 @@ class LLMAgent(Agent):
         self.vision = vision
         self.reasoning = reasoning(agent=self)
         self.system_prompt = system_prompt
+        self.max_tool_retries = max(0, max_tool_retries)
         self._current_plan = None  # Store current plan for formatting
 
         # display coordination
@@ -95,20 +97,21 @@ class LLMAgent(Agent):
         """
         Asynchronous version of apply_plan.
         """
+        (
+            plan,
+            tool_call_resp,
+            retry_count,
+            retry_history,
+        ) = await self._aexecute_plan_with_retries(plan)
+
         self._current_plan = plan
-
-        tool_call_resp = await self.tool_manager.acall_tools(
-            agent=self, llm_response=plan.llm_plan
-        )
-
         await self.memory.aadd_to_memory(
             type="action",
-            content={
-                "tool_calls": [
-                    {k: v for k, v in tc.items() if k not in ["tool_call_id", "role"]}
-                    for tc in tool_call_resp
-                ]
-            },
+            content=self._build_action_memory_content(
+                tool_call_resp=tool_call_resp,
+                retry_count=retry_count,
+                retry_history=retry_history,
+            ),
         )
 
         return tool_call_resp
@@ -117,26 +120,147 @@ class LLMAgent(Agent):
         """
         Execute the plan in the simulation.
         """
-        # Store current plan for display
+        plan, tool_call_resp, retry_count, retry_history = (
+            self._execute_plan_with_retries(plan)
+        )
         self._current_plan = plan
 
-        # Execute tool calls
-        tool_call_resp = self.tool_manager.call_tools(
-            agent=self, llm_response=plan.llm_plan
-        )
-
-        # Add to memory
         self.memory.add_to_memory(
             type="action",
-            content={
-                "tool_calls": [
-                    {k: v for k, v in tc.items() if k not in ["tool_call_id", "role"]}
-                    for tc in tool_call_resp
-                ]
-            },
+            content=self._build_action_memory_content(
+                tool_call_resp=tool_call_resp,
+                retry_count=retry_count,
+                retry_history=retry_history,
+            ),
         )
 
         return tool_call_resp
+
+    def _strip_tool_response(self, tool_call_resp: dict) -> dict:
+        return {k: v for k, v in tool_call_resp.items() if k not in ["tool_call_id", "role"]}
+
+    def _has_tool_errors(self, tool_call_resp: list[dict]) -> bool:
+        return any(
+            str(result.get("response", "")).startswith("Error:")
+            for result in tool_call_resp
+        )
+
+    def _build_tool_retry_prompt(
+        self,
+        plan: Plan,
+        tool_call_resp: list[dict],
+        retry_attempt: int,
+    ) -> str:
+        original_plan = (
+            str(plan.llm_plan.content).strip()
+            if hasattr(plan.llm_plan, "content") and plan.llm_plan.content
+            else str(plan.llm_plan).strip()
+        )
+
+        failed_results = [
+            f"- {result.get('name', 'unknown_tool')}: {result.get('response', '')}"
+            for result in tool_call_resp
+            if str(result.get("response", "")).startswith("Error:")
+        ]
+        successful_results = [
+            f"- {result.get('name', 'unknown_tool')}: {result.get('response', '')}"
+            for result in tool_call_resp
+            if not str(result.get("response", "")).startswith("Error:")
+        ]
+
+        prompt_parts = [
+            f"Retry attempt {retry_attempt}: the previous tool execution failed.",
+            "Issue corrected tool call(s) using the available schema only.",
+            f"Original executor plan:\n{original_plan}",
+            "Observed tool failures:\n" + "\n".join(failed_results),
+        ]
+        if successful_results:
+            prompt_parts.append(
+                "Previous successful tool results (avoid repeating unless needed):\n"
+                + "\n".join(successful_results)
+            )
+
+        return "\n\n".join(prompt_parts)
+
+    def _build_action_memory_content(
+        self,
+        *,
+        tool_call_resp: list[dict],
+        retry_count: int,
+        retry_history: list[list[dict]],
+    ) -> dict:
+        content = {
+            "tool_calls": [
+                self._strip_tool_response(tool_call) for tool_call in tool_call_resp
+            ]
+        }
+        if retry_count:
+            content["tool_retry_count"] = retry_count
+            content["tool_retry_history"] = [
+                [self._strip_tool_response(tool_call) for tool_call in attempt]
+                for attempt in retry_history
+            ]
+        return content
+
+    def _execute_plan_with_retries(
+        self, plan: Plan
+    ) -> tuple[Plan, list[dict], int, list[list[dict]]]:
+        current_plan = plan
+        retry_history = []
+        retry_count = 0
+
+        tool_call_resp = self.tool_manager.call_tools(
+            agent=self, llm_response=current_plan.llm_plan
+        )
+
+        while retry_count < self.max_tool_retries and self._has_tool_errors(
+            tool_call_resp
+        ):
+            retry_count += 1
+            retry_history.append(tool_call_resp)
+            retry_prompt = self._build_tool_retry_prompt(
+                current_plan, tool_call_resp, retry_count
+            )
+            current_plan = self.reasoning.execute_tool_call(
+                retry_prompt,
+                selected_tools=current_plan.selected_tools,
+                ttl=current_plan.ttl,
+            )
+            tool_call_resp = self.tool_manager.call_tools(
+                agent=self, llm_response=current_plan.llm_plan
+            )
+
+        return current_plan, tool_call_resp, retry_count, retry_history
+
+    async def _aexecute_plan_with_retries(
+        self, plan: Plan
+    ) -> tuple[Plan, list[dict], int, list[list[dict]]]:
+        current_plan = plan
+        retry_history = []
+        retry_count = 0
+
+        tool_call_resp = await self.tool_manager.acall_tools(
+            agent=self, llm_response=current_plan.llm_plan
+        )
+
+        while retry_count < self.max_tool_retries and self._has_tool_errors(
+            tool_call_resp
+        ):
+            retry_count += 1
+            retry_history.append(tool_call_resp)
+            retry_prompt = self._build_tool_retry_prompt(
+                current_plan, tool_call_resp, retry_count
+            )
+            current_plan = await self.reasoning.aexecute_tool_call(
+                retry_prompt,
+                selected_tools=current_plan.selected_tools,
+                ttl=current_plan.ttl,
+            )
+            tool_call_resp = await self.tool_manager.acall_tools(
+                agent=self, llm_response=current_plan.llm_plan
+            )
+
+        return current_plan, tool_call_resp, retry_count, retry_history
 
     def _build_observation(self):
         """

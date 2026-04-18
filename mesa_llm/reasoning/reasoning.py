@@ -42,6 +42,7 @@ class Plan:
     step: int  # step when the plan was generated
     llm_plan: Any  # complete LLM response message object (contains both content and tool_calls)
     ttl: int = 1  # steps until planning again (ReWOO sets >1)
+    selected_tools: list[str] | None = None
 
     def __str__(self) -> str:
         # Extract content from the message object for display
@@ -120,7 +121,12 @@ class Reasoning(ABC):
             tool_choice="required",
         )
         response_message = rsp.choices[0].message
-        plan = Plan(step=self.agent.model.steps, llm_plan=response_message, ttl=ttl)
+        plan = Plan(
+            step=self.agent.model.steps,
+            llm_plan=response_message,
+            ttl=ttl,
+            selected_tools=selected_tools,
+        )
 
         return plan
 
@@ -143,6 +149,11 @@ class Reasoning(ABC):
             tool_choice="required",
         )
         response_message = rsp.choices[0].message
-        plan = Plan(step=self.agent.model.steps, llm_plan=response_message, ttl=ttl)
+        plan = Plan(
+            step=self.agent.model.steps,
+            llm_plan=response_message,
+            ttl=ttl,
+            selected_tools=selected_tools,
+        )
 
         return plan

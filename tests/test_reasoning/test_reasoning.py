@@ -85,6 +85,7 @@ class TestReasoningBase:
         assert result_plan.step == 5
         assert result_plan.llm_plan.content == "Final LLM message"
         assert result_plan.ttl == 1
+        assert result_plan.selected_tools == ["tool1"]
 
     def test_execute_tool_call_propagates_ttl(self):
         """Test that execute_tool_call propagates caller-provided TTL."""
@@ -105,3 +106,4 @@ class TestReasoningBase:
 
         assert isinstance(result_plan, Plan)
         assert result_plan.ttl == 7
+        assert result_plan.selected_tools is None

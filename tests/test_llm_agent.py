@@ -34,7 +34,7 @@ def test_apply_plan_adds_to_memory(monkeypatch):
 
             x, y = pos
 
-            agent = agents.to_list()[0]
+            agent = list(agents)[0]
             self.grid.place_agent(agent, (x, y))
             return agent
 
@@ -77,14 +77,16 @@ def test_apply_plan_preserves_multiple_tool_calls(monkeypatch):
             self.grid = MultiGrid(5, 5, torus=False)
 
     model = DummyModel()
-    agent = LLMAgent.create_agents(
-        model,
-        n=1,
-        reasoning=ReActReasoning,
-        system_prompt="test",
-        vision=-1,
-        internal_state=["test_state"],
-    ).to_list()[0]
+    agent = list(
+        LLMAgent.create_agents(
+            model,
+            n=1,
+            reasoning=ReActReasoning,
+            system_prompt="test",
+            vision=-1,
+            internal_state=["test_state"],
+        )
+    )[0]
     model.grid.place_agent(agent, (1, 1))
     agent.memory = ShortTermMemory(agent=agent, n=5, display=False)
 
@@ -123,6 +125,166 @@ def test_apply_plan_preserves_multiple_tool_calls(monkeypatch):
     }
 
 
+def test_apply_plan_retries_failed_tool_calls(monkeypatch):
+    """Failed tool calls should trigger a bounded executor retry."""
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
+
+    class DummyModel(Model):
+        def __init__(self):
+            super().__init__(rng=42)
+            self.grid = MultiGrid(5, 5, torus=False)
+
+    model = DummyModel()
+    agent = list(
+        LLMAgent.create_agents(
+            model,
+            n=1,
+            reasoning=ReActReasoning,
+            system_prompt="test",
+            vision=-1,
+            internal_state=["test_state"],
+        )
+    )[0]
+    model.grid.place_agent(agent, (1, 1))
+    agent.memory = ShortTermMemory(agent=agent, n=5, display=False)
+
+    responses = iter(
+        [
+            [
+                {
+                    "tool_call_id": "1",
+                    "role": "tool",
+                    "name": "move_one_step",
+                    "response": "Error: blocked by wall",
+                }
+            ],
+            [
+                {
+                    "tool_call_id": "2",
+                    "role": "tool",
+                    "name": "move_one_step",
+                    "response": "agent moved to (1, 2)",
+                }
+            ],
+        ]
+    )
+
+    def fake_call_tools(agent, llm_response):
+        return next(responses)
+
+    monkeypatch.setattr(agent.tool_manager, "call_tools", fake_call_tools)
+    retry_plan = Plan(
+        step=0,
+        llm_plan="retry tool call",
+        ttl=3,
+        selected_tools=["move_one_step"],
+    )
+    monkeypatch.setattr(
+        agent.reasoning,
+        "execute_tool_call",
+        lambda prompt, selected_tools, ttl: retry_plan,
+    )
+
+    plan = Plan(
+        step=0,
+        llm_plan="initial tool call",
+        ttl=3,
+        selected_tools=["move_one_step"],
+    )
+    resp = agent.apply_plan(plan)
+
+    assert resp == [
+        {
+            "tool_call_id": "2",
+            "role": "tool",
+            "name": "move_one_step",
+            "response": "agent moved to (1, 2)",
+        }
+    ]
+
+    action_content = agent.memory.step_content.get("action")
+    assert action_content["tool_calls"] == [
+        {"name": "move_one_step", "response": "agent moved to (1, 2)"}
+    ]
+    assert action_content["tool_retry_count"] == 1
+    assert action_content["tool_retry_history"] == [
+        [{"name": "move_one_step", "response": "Error: blocked by wall"}]
+    ]
+
+
+def test_apply_plan_retry_prompt_includes_failure_context(monkeypatch):
+    """Retry prompts should include the original plan and the tool error."""
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
+
+    class DummyModel(Model):
+        def __init__(self):
+            super().__init__(rng=42)
+            self.grid = MultiGrid(5, 5, torus=False)
+
+    model = DummyModel()
+    agent = list(
+        LLMAgent.create_agents(
+            model,
+            n=1,
+            reasoning=ReActReasoning,
+            system_prompt="test",
+            vision=-1,
+            internal_state=["test_state"],
+        )
+    )[0]
+    model.grid.place_agent(agent, (1, 1))
+    agent.memory = ShortTermMemory(agent=agent, n=5, display=False)
+
+    responses = iter(
+        [
+            [
+                {
+                    "tool_call_id": "1",
+                    "role": "tool",
+                    "name": "lookup",
+                    "response": "Error: record not found",
+                }
+            ],
+            [
+                {
+                    "tool_call_id": "2",
+                    "role": "tool",
+                    "name": "lookup",
+                    "response": "found record",
+                }
+            ],
+        ]
+    )
+
+    def fake_call_tools(agent, llm_response):
+        return next(responses)
+
+    captured = {}
+
+    def fake_execute_tool_call(prompt, selected_tools, ttl):
+        captured["prompt"] = prompt
+        captured["selected_tools"] = selected_tools
+        captured["ttl"] = ttl
+        return Plan(
+            step=0,
+            llm_plan="retry lookup",
+            ttl=ttl,
+            selected_tools=selected_tools,
+        )
+
+    monkeypatch.setattr(agent.tool_manager, "call_tools", fake_call_tools)
+    monkeypatch.setattr(agent.reasoning, "execute_tool_call", fake_execute_tool_call)
+
+    agent.apply_plan(
+        Plan(step=0, llm_plan="original lookup plan", selected_tools=["lookup"], ttl=2)
+    )
+
+    assert "original lookup plan" in captured["prompt"]
+    assert "Error: record not found" in captured["prompt"]
+    assert captured["selected_tools"] == ["lookup"]
+    assert captured["ttl"] == 2
+
+
 @pytest.mark.asyncio
 async def test_aapply_plan_preserves_multiple_tool_calls(monkeypatch):
     """Async variant: all tool call results must be preserved."""
@@ -134,14 +296,16 @@ async def test_aapply_plan_preserves_multiple_tool_calls(monkeypatch):
             self.grid = MultiGrid(5, 5, torus=False)
 
     model = DummyModel()
-    agent = LLMAgent.create_agents(
-        model,
-        n=1,
-        reasoning=ReActReasoning,
-        system_prompt="test",
-        vision=-1,
-        internal_state=["test_state"],
-    ).to_list()[0]
+    agent = list(
+        LLMAgent.create_agents(
+            model,
+            n=1,
+            reasoning=ReActReasoning,
+            system_prompt="test",
+            vision=-1,
+            internal_state=["test_state"],
+        )
+    )[0]
     model.grid.place_agent(agent, (1, 1))
     agent.memory = ShortTermMemory(agent=agent, n=5, display=False)
 
@@ -182,6 +346,85 @@ async def test_aapply_plan_preserves_multiple_tool_calls(monkeypatch):
     }
 
 
+@pytest.mark.asyncio
+async def test_aapply_plan_retries_failed_tool_calls(monkeypatch):
+    """Async apply_plan should retry failed tool calls once by default."""
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
+
+    class DummyModel(Model):
+        def __init__(self):
+            super().__init__(rng=42)
+            self.grid = MultiGrid(5, 5, torus=False)
+
+    model = DummyModel()
+    agent = list(
+        LLMAgent.create_agents(
+            model,
+            n=1,
+            reasoning=ReActReasoning,
+            system_prompt="test",
+            vision=-1,
+            internal_state=["test_state"],
+        )
+    )[0]
+    model.grid.place_agent(agent, (1, 1))
+    agent.memory = ShortTermMemory(agent=agent, n=5, display=False)
+
+    async def fake_aadd_to_memory(*args, **kwargs):
+        agent.memory.step_content["action"] = kwargs["content"]
+
+    monkeypatch.setattr(agent.memory, "aadd_to_memory", fake_aadd_to_memory)
+
+    responses = iter(
+        [
+            [
+                {
+                    "tool_call_id": "1",
+                    "role": "tool",
+                    "name": "move_one_step",
+                    "response": "Error: occupied cell",
+                }
+            ],
+            [
+                {
+                    "tool_call_id": "2",
+                    "role": "tool",
+                    "name": "move_one_step",
+                    "response": "agent moved to (2, 1)",
+                }
+            ],
+        ]
+    )
+
+    async def fake_acall_tools(agent, llm_response):
+        return next(responses)
+
+    async def fake_aexecute_tool_call(prompt, selected_tools, ttl):
+        return Plan(
+            step=0,
+            llm_plan="retry tool call",
+            ttl=ttl,
+            selected_tools=selected_tools,
+        )
+
+    monkeypatch.setattr(agent.tool_manager, "acall_tools", fake_acall_tools)
+    monkeypatch.setattr(agent.reasoning, "aexecute_tool_call", fake_aexecute_tool_call)
+
+    resp = await agent.aapply_plan(
+        Plan(step=0, llm_plan="initial tool call", selected_tools=["move_one_step"])
+    )
+
+    assert resp == [
+        {
+            "tool_call_id": "2",
+            "role": "tool",
+            "name": "move_one_step",
+            "response": "agent moved to (2, 1)",
+        }
+    ]
+    assert agent.memory.step_content["action"]["tool_retry_count"] == 1
+
+
 def test_generate_obs_with_one_neighbor(monkeypatch):
     class DummyModel(Model):
         def __init__(self):
@@ -199,7 +442,7 @@ def test_generate_obs_with_one_neighbor(monkeypatch):
                 internal_state=["test_state"],
             )
             x, y = pos
-            agent = agents.to_list()[0]
+            agent = list(agents)[0]
             self.grid.place_agent(agent, (x, y))
             return agent
 
@@ -255,7 +498,7 @@ def test_send_message_updates_both_agents_memory(monkeypatch):
                 internal_state=["test_state"],
             )
             x, y = pos
-            agent = agents.to_list()[0]
+            agent = list(agents)[0]
             self.grid.place_agent(agent, (x, y))
             return agent
 
@@ -328,7 +571,7 @@ async def test_asend_message_updates_both_agents_memory(monkeypatch):
                 internal_state=["test_state"],
             )
             x, y = pos
-            agent = agents.to_list()[0]
+            agent = list(agents)[0]
             self.grid.place_agent(agent, (x, y))
             return agent
 
@@ -400,7 +643,7 @@ async def test_aapply_plan_adds_to_memory(monkeypatch):
             )
 
             x, y = pos
-            agent = agents.to_list()[0]
+            agent = list(agents)[0]
             self.grid.place_agent(agent, (x, y))
             return agent
 
@@ -445,7 +688,7 @@ async def test_agenerate_obs_with_one_neighbor(monkeypatch):
                 internal_state=["test_state"],
             )
             x, y = pos
-            agent = agents.to_list()[0]
+            agent = list(agents)[0]
             self.grid.place_agent(agent, (x, y))
             return agent
 
@@ -489,14 +732,16 @@ async def test_async_wrapper_calls_pre_and_post(monkeypatch):
 
     model = DummyModel()
 
-    agent = CustomAgent.create_agents(
-        model,
-        n=1,
-        reasoning=lambda agent: None,
-        system_prompt="test",
-        vision=-1,
-        internal_state=[],
-    ).to_list()[0]
+    agent = list(
+        CustomAgent.create_agents(
+            model,
+            n=1,
+            reasoning=lambda agent: None,
+            system_prompt="test",
+            vision=-1,
+            internal_state=[],
+        )
+    )[0]
 
     calls = {"pre": 0, "post": 0}
 
@@ -533,7 +778,7 @@ def _make_agent(model, vision=0, internal_state=None):
         vision=vision,
         internal_state=internal_state or ["test"],
     )
-    agent = agents.to_list()[0]
+    agent = list(agents)[0]
     agent.memory = ShortTermMemory(agent=agent, n=5, display=True)
     return agent
 
@@ -690,7 +935,7 @@ def test_generate_obs_vision_all_agents(monkeypatch):
         a.memory = ShortTermMemory(agent=a, n=5, display=True)
         model.grid.place_agent(a, (idx, idx))
 
-    agent = agents.to_list()[0]
+    agent = list(agents)[0]
     monkeypatch.setattr(agent.memory, "add_to_memory", lambda *a, **kw: None)
     obs = agent.generate_obs()
 
@@ -712,7 +957,7 @@ def test_generate_obs_no_grid_with_vision(monkeypatch):
         vision=5,
         internal_state=["test"],
     )
-    agent = agents.to_list()[0]
+    agent = list(agents)[0]
     agent.unique_id = 1
     agent.memory = ShortTermMemory(agent=agent, n=5, display=True)
     monkeypatch.setattr(agent.memory, "add_to_memory", lambda *a, **kw: None)
@@ -888,7 +1133,7 @@ def _make_send_message_model(monkeypatch):
                 vision=-1,
                 internal_state=[],
             )
-            agent = agents.to_list()[0]
+            agent = list(agents)[0]
             self.grid.place_agent(agent, pos)
             return agent
 

@@ -112,7 +112,7 @@ def grid_model():
 def basic_agent(basic_model):
     """Create single agent with memory"""
     agents = LLMAgent.create_agents(basic_model, n=1, vision=0, **DEFAULT_AGENT_CONFIG)
-    agent = agents.to_list()[0]
+    agent = list(agents)[0]
     agent.memory = ShortTermMemory(agent=agent, n=5, display=True)
     return agent
 
