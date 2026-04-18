@@ -1,23 +1,39 @@
-from mesa import Model
+from __future__ import annotations
+
+from mesa.datacollection import DataCollector
+from mesa.model import Model
 from mesa.space import MultiGrid
-import random
+from rich import print
 
-from examples.student.agent import SchoolAgent,StudentAgent
+from examples.student.agent import SchoolAgent, StudentAgent, StudentState
+from mesa_llm.reasoning.reasoning import Reasoning
+from mesa_llm.recording.record_model import record_model
 
 
-class SchoolModel(Model):
-
-    def __init__(self, width=20, height=20, n_students=100, n_schools=10, seed=None):
+@record_model(output_dir="recordings")
+class StudentSchoolModel(Model):
+    def __init__(
+        self,
+        width: int,
+        height: int,
+        n_students: int,
+        n_schools: int,
+        reasoning: type[Reasoning],
+        llm_model: str,
+        vision: int,
+        api_base: str | None = None,
+        parallel_stepping=False,
+        seed=None,
+    ):
         super().__init__(seed=seed)
-
-        self.grid = MultiGrid(width, height, False)
+        self.width = width
+        self.height = height
+        self.parallel_stepping = parallel_stepping
+        self.grid = MultiGrid(width, height, torus=False)
 
         self.students = []
         self.schools = []
 
-        # -----------------------------
-        # 🧠 PARAMETERS (YOUR SET)
-        # -----------------------------
         self.alpha_ach = 0.2
         self.beta_ach = 0.7
         self.sigma_ach = 0.5
@@ -42,140 +58,248 @@ class SchoolModel(Model):
         self.beta_bc1 = 2
         self.sigma_bc = 5
 
-        self.distance_threshold = 20
-
+        self.distance_threshold = 6
         self.pass_rate = 0.8
 
-        # -----------------------------
-        # 🏫 Schools
-        # -----------------------------
-        for i in range(n_schools):
-            school = SchoolAgent(i, self)
+        self.datacollector = DataCollector(
+            model_reporters={
+                "Enrolled": lambda m: sum(
+                    1
+                    for student in m.students
+                    if student.state == StudentState.ENROLLED
+                ),
+                "Dropout": lambda m: sum(
+                    1
+                    for student in m.students
+                    if student.state == StudentState.DROPOUT
+                ),
+                "Graduate": lambda m: sum(
+                    1
+                    for student in m.students
+                    if student.state == StudentState.GRADUATE
+                ),
+                "Average_Achievement": lambda m: (
+                    sum(student.achievement for student in m.students) / len(m.students)
+                    if m.students
+                    else 0.0
+                ),
+            },
+            agent_reporters={
+                "state": lambda agent: getattr(getattr(agent, "state", None), "value", None),
+                "grade": lambda agent: getattr(agent, "grade", None),
+                "achievement": lambda agent: getattr(agent, "achievement", None),
+                "tuition": lambda agent: getattr(agent, "tuition", None),
+            },
+        )
 
-            x = self.random.randrange(width)
-            y = self.random.randrange(height)
+        school_system_prompt = (
+            "You are a school administrator in a competitive education market. "
+            "Communicate clearly with nearby students and describe your school honestly."
+        )
+        school_step_prompt = (
+            "Review your current capacity, tuition, and nearby students. "
+            "If helpful, use speak_to to share information about your school."
+        )
+        schools = SchoolAgent.create_agents(
+            self,
+            n=n_schools,
+            reasoning=reasoning,
+            llm_model=llm_model,
+            system_prompt=school_system_prompt,
+            vision=vision,
+            internal_state=None,
+            step_prompt=school_step_prompt,
+            api_base=api_base,
+        )
 
-            self.grid.place_agent(school, (x, y))
-            school.pos = (x, y)
-
+        x_positions = self.rng.integers(0, self.grid.width, size=(n_schools,))
+        y_positions = self.rng.integers(0, self.grid.height, size=(n_schools,))
+        for school, x_pos, y_pos in zip(schools, x_positions, y_positions):
+            self.grid.place_agent(school, (x_pos, y_pos))
             self.schools.append(school)
 
-        # -----------------------------
-        # 🎓 Students
-        # -----------------------------
-        for i in range(n_students):
-            student = StudentAgent(i + n_schools, self)
+        student_system_prompt = (
+            "You are a student navigating school choice, financial constraints, "
+            "social influence, and academic progress."
+        )
+        student_step_prompt = (
+            "Think about your academic progress, finances, and nearby schools. "
+            "You may move, talk to nearby agents, graduate if you are in grade 12, "
+            "or leave school if you believe continuing is impossible."
+        )
+        students = StudentAgent.create_agents(
+            self,
+            n=n_students,
+            reasoning=reasoning,
+            llm_model=llm_model,
+            system_prompt=student_system_prompt,
+            vision=vision,
+            internal_state=None,
+            step_prompt=student_step_prompt,
+            api_base=api_base,
+        )
 
-            x = self.random.randrange(width)
-            y = self.random.randrange(height)
-
-            self.grid.place_agent(student, (x, y))
-            student.pos = (x, y)
-
+        x_positions = self.rng.integers(0, self.grid.width, size=(n_students,))
+        y_positions = self.rng.integers(0, self.grid.height, size=(n_students,))
+        for student, x_pos, y_pos in zip(students, x_positions, y_positions):
+            self.grid.place_agent(student, (x_pos, y_pos))
             self.students.append(student)
 
-    # -----------------------------
-    # 🎯 PASS / FAIL
-    # -----------------------------
-    def pass_fail(self):
+        self.refresh_all_agents()
+        self.datacollector.collect(self)
 
+    def refresh_all_agents(self):
+        for school in self.schools:
+            school.refresh_internal_state()
+        for student in self.students:
+            student.refresh_internal_state()
+
+    def pass_fail(self):
         grades = {}
 
-        for s in self.students:
-            grades.setdefault(s.grade, []).append(s)
+        for student in self.students:
+            if student.state != StudentState.ENROLLED:
+                continue
+            grades.setdefault(student.grade, []).append(student)
 
-        for group in grades.values():
+        for grade_group in grades.values():
+            ranked_students = sorted(
+                grade_group,
+                key=lambda student: student.achievement,
+                reverse=True,
+            )
+            cutoff = int(len(ranked_students) * self.pass_rate)
 
-            sorted_students = sorted(group, key=lambda s: s.achievement, reverse=True)
+            for index, student in enumerate(ranked_students):
+                student.passed = index < cutoff
+                student.refresh_internal_state()
 
-            cutoff = int(len(sorted_students) * self.pass_rate)
-
-            for i, s in enumerate(sorted_students):
-                s.passed = (i < cutoff)
-
-    # -----------------------------
-    # 🔁 MATCHING
-    # -----------------------------
     def matching(self):
-
         for school in self.schools:
             school.students = []
 
-        unassigned = [s for s in self.students if s.state != "DROPOUT"]
+        for student in self.students:
+            if student.state == StudentState.ENROLLED:
+                student.current_school = None
+                student.state = StudentState.APPLIED
+                student.refresh_internal_state()
+
+        unassigned = [
+            student for student in self.students if student.state == StudentState.APPLIED
+        ]
 
         while unassigned:
-
             applications = {school: [] for school in self.schools}
 
             for student in unassigned:
                 school = student.choose_school()
-                if school:
+                if school is not None:
                     applications[school].append(student)
 
             new_unassigned = []
 
             for school, applicants in applications.items():
-
                 selected = school.select_students(applicants)
 
-                for s in selected:
-                    s.current_school = school
-                    school.students.append(s)
+                for student in selected:
+                    student.current_school = school
+                    student.state = StudentState.ENROLLED
+                    school.students.append(student)
+                    student.refresh_internal_state()
 
-                rejected = [s for s in applicants if s not in selected]
+                for student in applicants:
+                    if student not in selected:
+                        if school in student.choice_set:
+                            student.choice_set.remove(school)
+                        new_unassigned.append(student)
+                        student.refresh_internal_state()
 
-                for s in rejected:
-                    if school in s.choice_set:
-                        s.choice_set.remove(school)
-                    new_unassigned.append(s)
-
-            if new_unassigned == unassigned:
+            unresolved_ids = {student.unique_id for student in new_unassigned}
+            previous_ids = {student.unique_id for student in unassigned}
+            if unresolved_ids == previous_ids:
+                for student in new_unassigned:
+                    student.state = StudentState.ENROLLED
+                    student.refresh_internal_state()
                 break
 
             unassigned = new_unassigned
 
-    # -----------------------------
-    # 🔁 STEP
-    # -----------------------------
-    def step(self):
+        for student in self.students:
+            if student.state == StudentState.APPLIED:
+                student.state = StudentState.ENROLLED
+                student.refresh_internal_state()
 
-        # 1. Tuition update (NEW)
+        for school in self.schools:
+            school.update_composition_metrics()
+
+    def progress_students(self):
+        for student in self.students:
+            if student.state == StudentState.DROPOUT:
+                continue
+
+            if student.state == StudentState.GRADUATE:
+                student.current_school = None
+                student.refresh_internal_state()
+                continue
+
+            if student.passed:
+                if student.grade >= 12:
+                    student.state = StudentState.GRADUATE
+                    student.current_school = None
+                else:
+                    student.grade += 1
+
+            student.refresh_internal_state()
+
+    def step(self):
+        print(
+            f"\n[bold purple] step {self.steps} "
+            "────────────────────────────────────────────────────────────────────────────────[/bold purple]"
+        )
+
+        self.agents.shuffle_do("step")
+
         for school in self.schools:
             school.update_tuition()
 
-        # 2. Achievement
-        for s in self.students:
-            s.update_achievement()
+        for student in self.students:
+            student.update_achievement()
 
-        # 3. Pass / Fail
         self.pass_fail()
 
-        # 4. Dropout
-        for s in self.students:
-            s.apply_dropout()
+        for student in self.students:
+            student.apply_dropout()
 
-        # 5. Social network
-        for s in self.students:
-            s.build_social_network()
+        for student in self.students:
+            if student.state == StudentState.ENROLLED:
+                student.build_social_network()
+                student.build_choice_set()
+                student.compute_utility()
 
-        # 6. Choice set
-        for s in self.students:
-            s.build_choice_set()
-
-        # 7. Utility
-        for s in self.students:
-            s.compute_utility()
-
-        # 8. Matching
         self.matching()
+        self.progress_students()
+        self.datacollector.collect(self)
 
 
-# -----------------------------
-# 🚀 RUN
-# -----------------------------
+# Backward-compatible aliases used by the earlier draft example files.
+Student_School = StudentSchoolModel
+SchoolModel = StudentSchoolModel
+
+
 if __name__ == "__main__":
+    from mesa_llm.reasoning.react import ReActReasoning
 
-    model = SchoolModel()
+    model = StudentSchoolModel(
+        width=10,
+        height=10,
+        n_students=20,
+        n_schools=4,
+        reasoning=ReActReasoning,
+        llm_model="ollama/llama3.1:latest",
+        vision=5,
+        parallel_stepping=False,
+        seed=42,
+    )
 
-    for i in range(10):
+    for _ in range(5):
         model.step()

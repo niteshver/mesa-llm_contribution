@@ -1,7 +1,9 @@
-import mesa
-import random
+from __future__ import annotations
+
 import math
+import random
 from enum import Enum
+
 from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.memory.st_lt_memory import STLTMemory
 from mesa_llm.tools.tool_manager import ToolManager
@@ -10,59 +12,99 @@ student_tool_manager = ToolManager()
 school_tool_manager = ToolManager()
 
 
-class Student_state(Enum):
-    Enrolled = "ENROLLED"
-    APPLIED = "APLIED"
+class StudentState(Enum):
+    ENROLLED = "ENROLLED"
+    APPLIED = "APPLIED"
     DROPOUT = "DROPOUT"
     GRADUATE = "GRADUATE"
 
-# -----------------------------
-# 🎓 STUDENT AGENT
-# -----------------------------
-class StudentAgent(LLMAgent):
 
-    def __init__(self, unique_id, model):
-        super().__init__(unique_id, model)
+# Backward-compatible alias for older imports in this example.
+Student_state = StudentState
+
+
+class StudentAgent(LLMAgent):
+    def __init__(
+        self,
+        model,
+        reasoning,
+        llm_model,
+        system_prompt,
+        vision,
+        internal_state,
+        step_prompt,
+        api_base=None,
+    ):
+        super().__init__(
+            model=model,
+            reasoning=reasoning,
+            llm_model=llm_model,
+            system_prompt=system_prompt,
+            vision=vision,
+            internal_state=internal_state,
+            step_prompt=step_prompt,
+            api_base=api_base,
+        )
 
         self.pos = None
-
-        # --- Core ---
         self.ses = random.random()
         self.achievement = random.uniform(-1, 1)
         self.grade = random.randint(1, 12)
-
-        self.state = "ENROLLED"
+        self.state = StudentState.ENROLLED
         self.passed = True
 
-        # --- Budget (BCᵢ) ---
         self.budget = max(
-            0,
+            0.0,
             model.beta_bc0
             + model.beta_bc1 * self.ses
             + random.normalvariate(0, model.sigma_bc),
         )
 
-        # --- School ---
         self.current_school = None
         self.choice_set = []
         self.utility_scores = {}
         self.social_network = []
+
         self.memory = STLTMemory(
-            model=self,
-            llm_model="ollama/llama3.1:latest",
-            display=True
+            agent=self,
+            llm_model=llm_model,
+            api_base=api_base,
+            display=True,
         )
         self.tool_manager = student_tool_manager
+        self.refresh_internal_state()
 
-    # -----------------------------
-    # 📈 Achievement Update
-    # -----------------------------
+    def refresh_internal_state(self):
+        school_name = (
+            f"School {self.current_school.unique_id}"
+            if self.current_school is not None
+            else "No school assigned"
+        )
+        friend_count = len(self.social_network)
+        visible_choices = [f"School {school.unique_id}" for school in self.choice_set]
+        ranked_utilities = {
+            f"School {school.unique_id}": round(score, 3)
+            for school, score in sorted(
+                self.utility_scores.items(), key=lambda item: item[1], reverse=True
+            )
+        }
+
+        self.internal_state = [
+            f"My enrollment state is {self.state.value}.",
+            f"My grade is {self.grade}.",
+            f"My achievement score is {self.achievement:.3f}.",
+            f"My socioeconomic status score is {self.ses:.3f}.",
+            f"My budget is {self.budget:.2f}.",
+            f"My current school is {school_name}.",
+            f"My pass status is {self.passed}.",
+            f"I currently track {friend_count} social connections.",
+            f"My available school choices are: {visible_choices}.",
+            f"My current utility ranking is: {ranked_utilities}.",
+        ]
+
     def update_achievement(self):
         noise = random.normalvariate(0, self.model.sigma_ach)
-
-        school_effect = 0
-        if self.current_school:
-            school_effect = self.current_school.value_added
+        school_effect = self.current_school.value_added if self.current_school else 0.0
 
         self.achievement = (
             self.model.alpha_ach
@@ -70,212 +112,203 @@ class StudentAgent(LLMAgent):
             + school_effect
             + noise
         )
+        self.achievement = max(-4.0, min(4.0, self.achievement))
+        self.refresh_internal_state()
 
-        self.achievement = max(-4, min(4, self.achievement))
-
-    # -----------------------------
-    # 🚪 Dropout
-    # -----------------------------
     def apply_dropout(self):
-
-        if self.state == "DROPOUT":
+        if self.state in {StudentState.DROPOUT, StudentState.GRADUATE}:
             return
 
         if self.passed:
-            p = self.model.alpha_pass
+            probability = self.model.alpha_pass
         else:
-            p = self.model.alpha_fail * math.exp(
+            probability = self.model.alpha_fail * math.exp(
                 self.model.beta_fail * self.grade
             )
 
-        if random.random() < p:
-            self.state = "DROPOUT"
+        if random.random() < probability:
+            self.state = StudentState.DROPOUT
+            self.current_school = None
 
-    # -----------------------------
-    # 🌐 Social Network
-    # -----------------------------
+        self.refresh_internal_state()
+
     def build_social_network(self):
-
         self.social_network = []
 
         for other in self.model.students:
-
-            if other == self:
+            if other is self or other.state == StudentState.DROPOUT:
                 continue
 
             ses_diff = abs(self.ses - other.ses)
-
-            p = math.exp(self.model.theta * ses_diff) / (
+            probability = math.exp(self.model.theta * ses_diff) / (
                 1 + math.exp(self.model.theta * ses_diff)
             )
 
-            if random.random() < p:
+            if random.random() < probability:
                 self.social_network.append(other)
 
-    # -----------------------------
-    # 🔍 Choice Set (WITH BUDGET)
-    # -----------------------------
-    def build_choice_set(self):
+        self.refresh_internal_state()
 
+    def build_choice_set(self):
         self.choice_set = []
 
-        for school in self.model.schools:
+        if self.pos is None:
+            return
 
+        for school in self.model.schools:
             dx = self.pos[0] - school.pos[0]
             dy = self.pos[1] - school.pos[1]
-            dist = math.sqrt(dx**2 + dy**2)
+            distance = math.sqrt(dx**2 + dy**2)
 
-            # ❗ Budget constraint (IMPORTANT)
             if school.tuition > self.budget:
                 continue
 
-            if dist < self.model.distance_threshold:
+            if distance <= self.model.distance_threshold:
                 self.choice_set.append(school)
             elif random.random() < school.visibility_prob:
                 self.choice_set.append(school)
 
-    # -----------------------------
-    # 🧠 Utility Function (FULL)
-    # -----------------------------
-    def compute_utility(self):
+        self.refresh_internal_state()
 
+    def compute_utility(self):
         self.utility_scores = {}
 
         for school in self.choice_set:
-
             dx = self.pos[0] - school.pos[0]
             dy = self.pos[1] - school.pos[1]
             distance = math.sqrt(dx**2 + dy**2)
 
             social_signal = sum(
-                1 for f in self.social_network if f.current_school == school
+                1 for friend in self.social_network if friend.current_school == school
             )
-
             ses_diff = abs(self.ses - school.avg_ses)
 
-            V = (
+            score = (
                 self.model.beta_distance * distance
                 + self.model.beta_quality * school.mean_achievement
                 + self.model.beta_selectivity * int(school.selective)
                 + self.model.beta_social * social_signal
                 + self.model.beta_ses * ses_diff
             )
+            self.utility_scores[school] = score
 
-            self.utility_scores[school] = V
+        self.refresh_internal_state()
 
-    # -----------------------------
-    # 🎯 Softmax Choice
-    # -----------------------------
     def choose_school(self):
+        available_scores = {
+            school: score
+            for school, score in self.utility_scores.items()
+            if school in self.choice_set
+        }
 
-        if not self.utility_scores:
+        if not available_scores:
             return None
 
-        schools = list(self.utility_scores.keys())
-        values = list(self.utility_scores.values())
-
-        exp_vals = [math.exp(v) for v in values]
+        schools = list(available_scores.keys())
+        values = list(available_scores.values())
+        max_value = max(values)
+        exp_vals = [math.exp(value - max_value) for value in values]
         total = sum(exp_vals)
+        probabilities = [value / total for value in exp_vals]
 
-        probs = [v / total for v in exp_vals]
+        return random.choices(schools, weights=probabilities, k=1)[0]
 
-        return random.choices(schools, weights=probs, k=1)[0]
     def step(self):
-        prompt = f"""
-        You are a student choosing schools in a competitive education system.
+        self.refresh_internal_state()
 
-        You consider:
-        - distance to school
-        - achivement {self.achievement}
-        - budget constraint {self.budget}
-        - Utility score {self.utility_scores}
-        - social network {self.social_network}
-        - whether your friends attend the school
-        - how similar the school is to your background (SES)
+        if self.state in {StudentState.DROPOUT, StudentState.GRADUATE}:
+            return
 
-        You must:
-        - choose a school from your available choice set
-        - prefer better schools but consider cost and distance
-        - update your decision based on past outcomes
-        You can use tools like speak_to,move_one_step
-
-        If you fail repeatedly, you may drop out.
-        If you complete grade 12, you graduate.
-
-        """
         observation = self.generate_obs()
         plan = self.reasoning.plan(
-            obs = observation,
-            selected_tools=None
+            obs=observation,
+            selected_tools=["move_one_step", "speak_to", "graduate", "leave_school"],
         )
-        self.aapply_plan(plan)
+        self.apply_plan(plan)
 
 
-
-# -----------------------------
-# 🏫 SCHOOL AGENT
-# -----------------------------
 class SchoolAgent(LLMAgent):
-
-    def __init__(self, unique_id, model):
-        super().__init__(unique_id, model)
+    def __init__(
+        self,
+        model,
+        reasoning,
+        llm_model,
+        system_prompt,
+        vision,
+        internal_state,
+        step_prompt,
+        api_base=None,
+    ):
+        super().__init__(
+            model=model,
+            reasoning=reasoning,
+            llm_model=llm_model,
+            system_prompt=system_prompt,
+            vision=vision,
+            internal_state=internal_state,
+            step_prompt=step_prompt,
+            api_base=api_base,
+        )
 
         self.pos = None
         self.capacity = random.randint(20, 50)
         self.students = []
-
         self.selective = random.choice([True, False])
         self.value_added = random.uniform(0, 1)
         self.mean_achievement = random.uniform(0, 1)
-
         self.visibility_prob = 0.3
         self.avg_ses = random.random()
-
-        # --- Tuition ---
         self.tuition = random.uniform(10, 50)
 
         self.memory = STLTMemory(
-            model=self,
-            llm_model="ollama/llama3.1:latest",
-            display=True
+            agent=self,
+            llm_model=llm_model,
+            api_base=api_base,
+            display=True,
         )
         self.tool_manager = school_tool_manager
+        self.refresh_internal_state()
 
-    # -----------------------------
-    # 💰 Tuition Update (FORMULA)
-    # -----------------------------
+    def refresh_internal_state(self):
+        self.internal_state = [
+            f"My capacity is {self.capacity}.",
+            f"My tuition is {self.tuition:.2f}.",
+            f"My selectivity flag is {self.selective}.",
+            f"My current enrollment is {len(self.students)} students.",
+            f"My value-added effect is {self.value_added:.3f}.",
+            f"My mean achievement is {self.mean_achievement:.3f}.",
+            f"My average SES is {self.avg_ses:.3f}.",
+        ]
+
     def update_tuition(self):
-
         noise = random.normalvariate(0, self.model.sigma_T)
+        self.tuition = self.model.alpha_T + self.model.beta_T * self.tuition + noise
+        self.tuition = max(0.0, self.tuition)
+        self.refresh_internal_state()
 
-        self.tuition = (
-            self.model.alpha_T
-            + self.model.beta_T * self.tuition
-            + noise
-        )
+    def update_composition_metrics(self):
+        if self.students:
+            self.mean_achievement = sum(s.achievement for s in self.students) / len(
+                self.students
+            )
+            self.avg_ses = sum(s.ses for s in self.students) / len(self.students)
+        self.refresh_internal_state()
 
-        self.tuition = max(0, self.tuition)
-
-    # -----------------------------
-    # 🎯 Selection
-    # -----------------------------
     def select_students(self, applicants):
-
         if len(applicants) <= self.capacity:
             return applicants
 
         if self.selective:
-            weights = [a.achievement + 4 for a in applicants]
-            return random.choices(applicants, weights=weights,  k=self.capacity)
+            ranked = sorted(applicants, key=lambda student: student.achievement, reverse=True)
+            return ranked[: self.capacity]
 
         return random.sample(applicants, self.capacity)
+
     def step(self):
-        prompt = ""
+        self.refresh_internal_state()
         observation = self.generate_obs()
         plan = self.reasoning.plan(
-            prompt=prompt,
             obs=observation,
-            selected_tools=[]
+            selected_tools=["speak_to"],
         )
-    
-
+        self.apply_plan(plan)
