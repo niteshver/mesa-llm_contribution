@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 
 @tool(tool_manager=student_tool_manager)
-def graduate(agent: "LLMAgent") -> str:
+def graduate(agent: LLMAgent) -> str:
     """
     Mark a student as graduated once they reach grade 12.
 
@@ -30,7 +30,7 @@ def graduate(agent: "LLMAgent") -> str:
 
 
 @tool(tool_manager=student_tool_manager)
-def leave_school(agent: "LLMAgent") -> str:
+def leave_school(agent: LLMAgent) -> str:
     """
     Remove a student from school and mark them as a dropout.
 

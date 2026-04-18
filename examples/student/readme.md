@@ -47,7 +47,7 @@ Represents an educational institution with strategic behavior.
 - Selects students either randomly or based on achievement
 
 ### Achievement Update
-``` bash 
+``` bash
 achievement = (
             alpha_ach
             + beta_ach * achievement

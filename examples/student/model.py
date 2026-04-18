@@ -1,4 +1,3 @@
-
 from mesa.datacollection import DataCollector
 from mesa.model import Model
 from mesa.space import MultiGrid
@@ -68,9 +67,7 @@ class StudentSchoolModel(Model):
                     if student.state == StudentState.ENROLLED
                 ),
                 "Dropout": lambda m: sum(
-                    1
-                    for student in m.students
-                    if student.state == StudentState.DROPOUT
+                    1 for student in m.students if student.state == StudentState.DROPOUT
                 ),
                 "Graduate": lambda m: sum(
                     1
@@ -84,7 +81,9 @@ class StudentSchoolModel(Model):
                 ),
             },
             agent_reporters={
-                "state": lambda agent: getattr(getattr(agent, "state", None), "value", None),
+                "state": lambda agent: getattr(
+                    getattr(agent, "state", None), "value", None
+                ),
                 "grade": lambda agent: getattr(agent, "grade", None),
                 "achievement": lambda agent: getattr(agent, "achievement", None),
                 "tuition": lambda agent: getattr(agent, "tuition", None),
@@ -184,7 +183,9 @@ class StudentSchoolModel(Model):
                 student.refresh_internal_state()
 
         unassigned = [
-            student for student in self.students if student.state == StudentState.APPLIED
+            student
+            for student in self.students
+            if student.state == StudentState.APPLIED
         ]
 
         while unassigned:

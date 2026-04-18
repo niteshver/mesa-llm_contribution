@@ -1,4 +1,3 @@
-
 import math
 import random
 from enum import Enum
@@ -158,9 +157,10 @@ class StudentAgent(LLMAgent):
             if school.tuition > self.budget:
                 continue
 
-            if distance <= self.model.distance_threshold:
-                self.choice_set.append(school)
-            elif random.random() < school.visibility_prob:
+            if (
+                distance <= self.model.distance_threshold
+                or random.random() < school.visibility_prob
+            ):
                 self.choice_set.append(school)
 
         self.refresh_internal_state()
@@ -294,7 +294,9 @@ class SchoolAgent(LLMAgent):
             return applicants
 
         if self.selective:
-            ranked = sorted(applicants, key=lambda student: student.achievement, reverse=True)
+            ranked = sorted(
+                applicants, key=lambda student: student.achievement, reverse=True
+            )
             return ranked[: self.capacity]
 
         return random.sample(applicants, self.capacity)
