@@ -14,7 +14,7 @@ model = StudentSchoolModel(
 
 print("\n--- RUNNING MODEL ---")
 
-model.step()   # only 1 step
+model.step()  # only 1 step
 
 print("\n--- RESULTS ---")
 

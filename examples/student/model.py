@@ -261,7 +261,7 @@ class StudentSchoolModel(Model):
             "────────────────────────────────────────────────────────────────────────────────[/bold purple]"
         )
 
-                # 1. Update achievement
+        # 1. Update achievement
         for student in self.students:
             student.update_achievement()
 
