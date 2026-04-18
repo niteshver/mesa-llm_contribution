@@ -290,16 +290,19 @@ class SchoolAgent(LLMAgent):
         self.refresh_internal_state()
 
     def select_students(self, applicants):
-        if len(applicants) <= self.capacity:
+
+        remaining_capacity = self.capacity - len(self.students)
+        if remaining_capacity <= 0:
+            return []
+
+        if len(applicants) <= remaining_capacity:
             return applicants
 
         if self.selective:
-            ranked = sorted(
-                applicants, key=lambda student: student.achievement, reverse=True
-            )
+            ranked = sorted(applicants, key=lambda student: student.achievement, reverse=True)
             return ranked[: self.capacity]
 
-        return random.sample(applicants, self.capacity)
+        return random.sample(applicants, remaining_capacity)
 
     def step(self):
         self.refresh_internal_state()

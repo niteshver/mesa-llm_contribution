@@ -226,7 +226,10 @@ class StudentSchoolModel(Model):
 
         for student in self.students:
             if student.state == StudentState.APPLIED:
-                student.state = StudentState.ENROLLED
+                if student.current_school is not None:
+                    student.state = StudentState.ENROLLED
+                else:
+                    student.state = StudentState.DROPOUT  
                 student.refresh_internal_state()
 
         for school in self.schools:
