@@ -6,7 +6,7 @@ from rich import print
 from examples.student.agent import SchoolAgent, StudentAgent, StudentState
 from mesa_llm.reasoning.reasoning import Reasoning
 from mesa_llm.recording.record_model import record_model
-
+from mesa_llm.reasoning.react import ReActReasoning
 
 @record_model(output_dir="recordings")
 class StudentSchoolModel(Model):
@@ -282,11 +282,6 @@ class StudentSchoolModel(Model):
         self.matching()
         self.progress_students()
         self.datacollector.collect(self)
-
-
-# Backward-compatible aliases used by the earlier draft example files.
-Student_School = StudentSchoolModel
-SchoolModel = StudentSchoolModel
 
 
 if __name__ == "__main__":
