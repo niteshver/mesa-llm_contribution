@@ -66,8 +66,7 @@ class StudentAgent(LLMAgent):
             display=True,
         )
         self.tool_manager = student_tool_manager
-        self.refresh_internal_state()
-
+        
     def refresh_internal_state(self):
         school_name = (
             f"School {self.current_school.unique_id}"
@@ -209,6 +208,7 @@ class StudentAgent(LLMAgent):
         return random.choices(schools, weights=probabilities, k=1)[0]
 
     def step(self):
+        
         self.refresh_internal_state()
 
         if self.state in {StudentState.DROPOUT, StudentState.GRADUATE}:
@@ -253,7 +253,7 @@ class SchoolAgent(LLMAgent):
         self.mean_achievement = random.uniform(0, 1)
         self.visibility_prob = 0.3
         self.avg_ses = random.random()
-        self.tuition = random.uniform(10, 50)
+        self.tuition = random.uniform(1, 10)
 
         self.memory = STLTMemory(
             agent=self,

@@ -261,28 +261,29 @@ class StudentSchoolModel(Model):
             "────────────────────────────────────────────────────────────────────────────────[/bold purple]"
         )
 
-        self.agents.shuffle_do("step")
-
-        for school in self.schools:
-            school.update_tuition()
-
+                # 1. Update achievement
         for student in self.students:
             student.update_achievement()
 
-        self.pass_fail()
-
-        for student in self.students:
-            student.apply_dropout()
-
+        # 2. Build decisions
         for student in self.students:
             if student.state == StudentState.ENROLLED:
                 student.build_social_network()
                 student.build_choice_set()
                 student.compute_utility()
 
+        # 3. Match students to schools
         self.matching()
+
+        # 4. Pass/fail AFTER school assignment
+        self.pass_fail()
+
+        # 5. Dropout AFTER results
+        for student in self.students:
+            student.apply_dropout()
+
+        # 6. Progress grades
         self.progress_students()
-        self.datacollector.collect(self)
 
 
 if __name__ == "__main__":
