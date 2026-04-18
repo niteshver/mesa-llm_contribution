@@ -4,9 +4,10 @@ from mesa.space import MultiGrid
 from rich import print
 
 from examples.student.agent import SchoolAgent, StudentAgent, StudentState
+from mesa_llm.reasoning.react import ReActReasoning
 from mesa_llm.reasoning.reasoning import Reasoning
 from mesa_llm.recording.record_model import record_model
-from mesa_llm.reasoning.react import ReActReasoning
+
 
 @record_model(output_dir="recordings")
 class StudentSchoolModel(Model):
@@ -229,7 +230,7 @@ class StudentSchoolModel(Model):
                 if student.current_school is not None:
                     student.state = StudentState.ENROLLED
                 else:
-                    student.state = StudentState.DROPOUT  
+                    student.state = StudentState.DROPOUT
                 student.refresh_internal_state()
 
         for school in self.schools:

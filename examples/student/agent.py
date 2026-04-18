@@ -299,7 +299,9 @@ class SchoolAgent(LLMAgent):
             return applicants
 
         if self.selective:
-            ranked = sorted(applicants, key=lambda student: student.achievement, reverse=True)
+            ranked = sorted(
+                applicants, key=lambda student: student.achievement, reverse=True
+            )
             return ranked[: self.capacity]
 
         return random.sample(applicants, remaining_capacity)
