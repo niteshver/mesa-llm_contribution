@@ -113,7 +113,7 @@ if __name__ == "__main__":
         model,
         components=[space_component, chart_component],
         model_params=model_params,
-        name="Student School Model",
+        name="School Enrollment Model",
     )
 
     """

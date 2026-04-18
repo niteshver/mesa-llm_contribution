@@ -1,4 +1,3 @@
-from __future__ import annotations
 
 from mesa.datacollection import DataCollector
 from mesa.model import Model

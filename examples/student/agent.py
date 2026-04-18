@@ -18,10 +18,6 @@ class StudentState(Enum):
     GRADUATE = "GRADUATE"
 
 
-# Backward-compatible alias for older imports in this example.
-Student_state = StudentState
-
-
 class StudentAgent(LLMAgent):
     def __init__(
         self,
