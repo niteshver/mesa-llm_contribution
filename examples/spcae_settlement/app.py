@@ -42,7 +42,7 @@ model_params = {
     "width": 50,
     "height": 50,
     "reasoning": ReActReasoning,
-    "llm_model": "ollama_chat/llama3.2:latest",
+    "llm_model": "ollama_chat/llama3.1:latest",
     "vision": 3,
     "api_base": None,
     "data_path": str(DATA_PATH),
