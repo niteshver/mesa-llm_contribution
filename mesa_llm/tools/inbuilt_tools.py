@@ -135,7 +135,6 @@ def move_one_step(agent: "LLMAgent", direction: str) -> str:
         if isinstance(grid_or_space, SingleGrid) and not grid_or_space.is_cell_empty(
             new_pos
         ):
-            
             return f"Agent {agent.unique_id} cannot move {direction}: target cell is occupied."
 
         target_coordinates = tuple(new_pos)
