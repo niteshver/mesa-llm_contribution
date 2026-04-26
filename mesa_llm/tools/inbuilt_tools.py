@@ -107,10 +107,7 @@ def move_one_step(agent: "LLMAgent", direction: str) -> str:
             )
 
         if target_cell.is_full:
-            return (
-                f"Agent {agent.unique_id} cannot move {direction} because "
-                "the target cell is full."
-            )
+            return f"Agent {agent.unique_id} cannot move {direction}: target cell is occupied."
 
         target_coordinates = tuple(target_cell.coordinate)
         return teleport_to_location(agent, target_coordinates)
@@ -138,10 +135,8 @@ def move_one_step(agent: "LLMAgent", direction: str) -> str:
         if isinstance(grid_or_space, SingleGrid) and not grid_or_space.is_cell_empty(
             new_pos
         ):
-            return (
-                f"Agent {agent.unique_id} cannot move {direction} because "
-                "the target cell is occupied."
-            )
+            
+            return f"Agent {agent.unique_id} cannot move {direction}: target cell is occupied."
 
         target_coordinates = tuple(new_pos)
         return teleport_to_location(agent, target_coordinates)
