@@ -1,16 +1,22 @@
 from __future__ import annotations
-
 from enum import Enum
+import random
 
-import mesa
-
+from mesa_geo.geoagent import GeoAgent
 from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.memory.st_lt_memory import STLTMemory
 from mesa_llm.tools.tool_manager import ToolManager
 
+
+# -------------------------------
+# TOOL MANAGER
+# -------------------------------
 martian_tool_manager = ToolManager()
 
 
+# -------------------------------
+# ENUMS
+# -------------------------------
 class Resilience(Enum):
     NEUROTIC = "neurotic"
     REACTIVE = "reactive"
@@ -19,166 +25,255 @@ class Resilience(Enum):
 
 
 class StressorType(Enum):
-    SHIPPING = "Shipping"
     HABITAT = "Habitat"
+    SHIPPING = "Shipping"
 
 
-class StressorAgent(mesa.Agent):
-    """Simple non-LLM stressor that persists for a few steps."""
+# -------------------------------
+# STRESSOR AGENT (MESA-GEO)
+# -------------------------------
+class StressorAgent(GeoAgent):
+    def __init__(self, model, geometry, crs, stressor_type: StressorType):
+        super().__init__(model, geometry, crs)
 
-    def __init__(
-        self,
-        model,
-        stressor_type: StressorType,
-        impacted_resource: str | None,
-        impact_strength: float,
-        remaining_steps: int = 4,
-    ):
-        super().__init__(model=model)
-        self.stressor_type = stressor_type
-        self.impacted_resource = impacted_resource
-        self.impact_strength = impact_strength
-        self.remaining_steps = remaining_steps
-        self.internal_state = [
-            f"stressor_type={self.stressor_type.value}",
-            f"impacted_resource={self.impacted_resource or 'morale'}",
-            f"impact_strength={self.impact_strength:.2f}",
-        ]
+        self.type = stressor_type
+        self.impact_strength = random.uniform(0.3, 0.6)
+        self.base_damage = 5
+        self.duration = random.randint(2, 4)
 
     def step(self):
-        if self.remaining_steps <= 0:
-            self.remove()
-            return
+        neighbors = self.model.space.get_neighbors_within_distance(self, 2)
 
-        self.remaining_steps -= 1
-        self.internal_state = [
-            f"stressor_type={self.stressor_type.value}",
-            f"impacted_resource={self.impacted_resource or 'morale'}",
-            f"impact_strength={self.impact_strength:.2f}",
-            f"remaining_steps={self.remaining_steps}",
-        ]
+        for agent in neighbors:
+            if isinstance(agent, MartianAgent):
 
-        if self.remaining_steps <= 0:
-            self.remove()
+                # distance-based damage
+                distance = self.geometry.distance(agent.geometry)
+                distance_factor = 1 / (distance + 1)
+
+                damage = (
+                    self.impact_strength
+                    * self.base_damage
+                    * (1 - agent.coping_capacity)
+                    * distance_factor
+                )
+
+                agent.health = max(0, agent.health - damage)
+
+                # coping reduction
+                agent.coping_capacity = max(
+                    0.3,
+                    agent.coping_capacity - 0.05 * self.impact_strength * distance_factor
+                )
+
+        # -----------------------------
+        # SETTLEMENT IMPACT
+        # -----------------------------
+        if self.type == StressorType.HABITAT:
+            resource = random.choice(["food", "water", "air"])
+
+            if resource == "food":
+                self.model.settlement_food *= (1 - 0.1 * self.impact_strength)
+            elif resource == "water":
+                self.model.settlement_water *= (1 - 0.1 * self.impact_strength)
+            elif resource == "air":
+                self.model.settlement_air *= (1 - 0.1 * self.impact_strength)
+
+        elif self.type == StressorType.SHIPPING:
+            self.model.shipment_blocked = True
+
+        # -----------------------------
+        # DECAY
+        # -----------------------------
+        self.impact_strength *= 0.8
+
+        # -----------------------------
+        # LIFETIME
+        # -----------------------------
+        self.duration -= 1
+
+        if self.duration <= 0:
+            self.model.space.remove_agent(self)
 
 
-class MartianAgent(LLMAgent):
-    """LLM-guided colonist responsible for colony maintenance and survival."""
+# -------------------------------
+# MARTIAN AGENT (LLM + ABM)
+# -------------------------------
+class MartianAgent(GeoAgent, LLMAgent):
 
     def __init__(
         self,
         model,
+        geometry,
+        crs,
         reasoning,
         llm_model,
         system_prompt,
         vision,
-        internal_state,
         step_prompt,
         resilience: Resilience,
-        coping_capacity: float,
         skill_1: int,
         skill_2: int,
-        health: float = 100.0,
-        weekly_food_need: float = 10.5,
-        weekly_water_need: float = 28.0,
-        weekly_air_need: float = 5.88,
-        weekly_waste_output: float = 1.0,
-        api_base: str | None = None,
+        coping_capacity: float,
+        health: float = 100,
+        api_base=None,
     ):
-        super().__init__(
+        GeoAgent.__init__(self, model, geometry, crs)
+
+        LLMAgent.__init__(
+            self,
             model=model,
             reasoning=reasoning,
             llm_model=llm_model,
             system_prompt=system_prompt,
             vision=vision,
-            internal_state=internal_state,
+            internal_state=None,
             step_prompt=step_prompt,
             api_base=api_base,
         )
+
+        # -----------------------------
+        # CORE ATTRIBUTES
+        # -----------------------------
         self.resilience = resilience
-        self.coping_capacity = coping_capacity
         self.skill_1 = skill_1
         self.skill_2 = skill_2
+        self.coping_capacity = coping_capacity
         self.health = health
-        self.weekly_food_need = weekly_food_need
-        self.weekly_water_need = weekly_water_need
-        self.weekly_air_need = weekly_air_need
-        self.weekly_waste_output = weekly_waste_output
-        self.sleep_recovery = self.model.random.uniform(1.0, 3.5)
-        self.current_task = "idle"
-        self.last_action_summary = "No action taken yet."
-        self.partner_id: int | None = None
+        self.state = "alive"
 
+        # -----------------------------
+        # NEEDS (weekly)
+        # -----------------------------
+        self.food_need = 10.5
+        self.water_need = 28
+        self.air_need = 5.88
+
+        # -----------------------------
+        # SOCIAL
+        # -----------------------------
+        self.partner_id = None
+
+        # -----------------------------
+        # RECOVERY
+        # -----------------------------
+        self.sleep_recovery = random.uniform(1, 3)
+
+        # -----------------------------
+        # MEMORY + TOOLS
+        # -----------------------------
         self.memory = STLTMemory(
             agent=self,
             llm_model=llm_model,
             api_base=api_base,
-            display=True,
+            display=False,
         )
+
         self.tool_manager = martian_tool_manager
-        self.refresh_internal_state()
 
+    # -----------------------------
+    # PASSIVE RECOVERY
+    # -----------------------------
+    def passive_recovery(self):
+        self.health = min(100, self.health + self.sleep_recovery)
+
+    # -----------------------------
+    # RESOURCE CONSUMPTION
+    # -----------------------------
+    def consume_resources(self):
+        # Food
+        if self.model.settlement_food >= self.food_need:
+            self.model.settlement_food -= self.food_need
+        else:
+            self.health -= 10
+
+        # Water
+        if self.model.settlement_water >= self.water_need:
+            self.model.settlement_water -= self.water_need
+        else:
+            self.health -= 10
+
+        # Air
+        if self.model.settlement_air >= self.air_need:
+            self.model.settlement_air -= self.air_need
+        else:
+            self.health -= 10
+
+    # -----------------------------
+    # PARTNER SYSTEM
+    # -----------------------------
+    def find_partner(self):
+        neighbors = self.model.space.get_neighbors(self)
+
+        for agent in neighbors:
+            if isinstance(agent, MartianAgent) and agent != self:
+                self.partner_id = agent.unique_id
+
+                # small coping boost
+                self.coping_capacity = min(1.5, self.coping_capacity + 0.05)
+                return agent
+
+        return None
+
+    # -----------------------------
+    # INTERNAL STATE (LLM)
+    # -----------------------------
     def refresh_internal_state(self):
-        sector_snapshot = self.model.get_cell_snapshot(self.pos)
-        settlement_snapshot = self.model.format_resource_snapshot()
-        active_stressors = self.model.describe_active_stressors()
-
         self.internal_state = [
-            f"I am Martian {self.unique_id} with resilience profile {self.resilience.value}.",
-            f"My health is {self.health:.1f}/100 and my coping capacity is {self.coping_capacity:.2f}.",
-            f"My skill vector is ({self.skill_1}, {self.skill_2}).",
-            f"My current task is {self.current_task}.",
-            f"Settlement reserves: {settlement_snapshot}.",
-            f"Current cell production capacities: {sector_snapshot}.",
-            f"Active stressors: {active_stressors}.",
-            f"My most recent action summary: {self.last_action_summary}.",
+            f"Health: {self.health:.2f}",
+            f"Coping: {self.coping_capacity:.2f}",
+            f"Skill: {self.skill_1 + self.skill_2}",
+            f"Food: {self.model.settlement_food:.2f}",
+            f"State: {self.state}",
         ]
 
-    def passive_recovery(self):
-        self.health = min(100.0, self.health + self.sleep_recovery)
-        self.coping_capacity = min(
-            1.25,
-            self.coping_capacity
-            + self.model.resilience_recovery_bonus[self.resilience.value],
-        )
-
-    def apply_stress_load(self):
-        pressure = self.model.get_psychological_pressure(self)
-        self.coping_capacity = max(0.05, self.coping_capacity - pressure)
-
-    def step(self):
-        if self.health <= 0:
-            self.model.remove_martian(self, reason="health_depleted")
-            return
-
-        self.current_task = "idle"
-        self.partner_id = None
-        self.passive_recovery()
-        self.apply_stress_load()
-        self.refresh_internal_state()
-
-        observation = self.generate_obs()
+    # -----------------------------
+    # LLM DECISION
+    # -----------------------------
+    def decide(self):
         plan = self.reasoning.plan(
-            obs=observation,
+            obs=self.generate_obs(),
             prompt=self.step_prompt,
             selected_tools=[
                 "move_one_step",
-                "survey_local_sector",
-                "produce_resource",
-                "mine_minerals",
-                "repair_habitat",
-                "support_neighbor",
+                "speak_to",
+                "die",
+                "produce_resource"
             ],
         )
-        tool_results = self.apply_plan(plan)
 
-        if tool_results:
-            self.last_action_summary = " | ".join(
-                result["response"] for result in tool_results
-            )
-        else:
-            self.last_action_summary = (
-                getattr(plan.llm_plan, "content", None) or "Observed and waited."
-            )
+        if plan:
+            self.apply_plan(plan)
 
+    # -----------------------------
+    # STEP
+    # -----------------------------
+    def step(self):
+
+        if self.state == "dead":
+            return
+
+        # recovery
+        self.passive_recovery()
+
+        # social interaction
+        self.find_partner()
+
+        # consume resources
+        self.consume_resources()
+
+        # death condition
+        if self.health <= 0:
+            self.state = "dead"
+            return
+
+        # update LLM state
         self.refresh_internal_state()
+
+        # decision making
+        self.decide()
+
+        # memory update
+        self.memory.add(
+            f"Health={self.health:.2f}, Coping={self.coping_capacity:.2f}"
+        )

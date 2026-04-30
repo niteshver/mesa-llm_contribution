@@ -10,7 +10,7 @@ from mesa.visualization import (
 )
 
 from examples.spcae_settlement.agent import MartianAgent, StressorAgent
-from examples.spcae_settlement.model import MarsSettlementModel, MarsSiteAgent
+from examples.spcae_settlement.model import SpaceModel
 from mesa_llm.parallel_stepping import enable_automatic_parallel_stepping
 from mesa_llm.reasoning.react import ReActReasoning
 
@@ -48,7 +48,7 @@ model_params = {
     "data_path": str(DATA_PATH),
 }
 
-model = MarsSettlementModel(
+model = SpaceModel(
     initial_martians=model_params["initial_martians"],
     width=model_params["width"],
     height=model_params["height"],
@@ -84,7 +84,7 @@ def mars_geo_portrayal(agent):
     if agent is None:
         return None
 
-    if MarsSiteAgent is not None and isinstance(agent, MarsSiteAgent):
+    if MartianAgent is not None and isinstance(agent, MartianAgent):
         return {
             "radius": 2,
             "color": "#7f5539",
