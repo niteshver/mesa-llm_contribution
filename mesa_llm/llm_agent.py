@@ -283,14 +283,15 @@ class LLMAgent(Agent):
             )
 
         action_prompt = self._build_action_choice_prompt(prompt, action_schemas)
-        response = self.llm.generate(
-            prompt=action_prompt,
-            tool_schema=None,
-            tool_choice="none",
-            response_format=ActionChoice,
-            system_prompt=system_prompt,
-            suppress_thinking=True,
-        )
+        with self.llm._one_shot_completion():
+            response = self.llm.generate(
+                prompt=action_prompt,
+                tool_schema=None,
+                tool_choice="none",
+                response_format=ActionChoice,
+                system_prompt=system_prompt,
+                suppress_thinking=True,
+            )
         action_choice = self._parse_action_choice_response(response)
         return self._action_manager.validate(self, action_choice, actions=actions)
 
@@ -312,14 +313,15 @@ class LLMAgent(Agent):
             )
 
         action_prompt = self._build_action_choice_prompt(prompt, action_schemas)
-        response = await self.llm.agenerate(
-            prompt=action_prompt,
-            tool_schema=None,
-            tool_choice="none",
-            response_format=ActionChoice,
-            system_prompt=system_prompt,
-            suppress_thinking=True,
-        )
+        with self.llm._one_shot_completion():
+            response = await self.llm.agenerate(
+                prompt=action_prompt,
+                tool_schema=None,
+                tool_choice="none",
+                response_format=ActionChoice,
+                system_prompt=system_prompt,
+                suppress_thinking=True,
+            )
         action_choice = self._parse_action_choice_response(response)
         return self._action_manager.validate(self, action_choice, actions=actions)
 
