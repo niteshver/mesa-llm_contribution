@@ -9,6 +9,15 @@ from .parallel_stepping import (
 )
 from .reasoning.reasoning import Observation, Plan
 from .recording.record_model import record_model
+from .tools.defaults import (
+    default_tools,
+    environment_tools,
+    external_tools,
+    legacy_tools,
+    math_tools,
+    social_query_tools,
+    spatial_tools,
+)
 from .tools.tool_manager import ToolManager
 
 # Enable automatic parallel stepping when mesa_llm is imported
@@ -18,14 +27,21 @@ __all__ = [
     "Observation",
     "Plan",
     "ToolManager",
+    "default_tools",
     "enable_automatic_parallel_stepping",
+    "environment_tools",
+    "external_tools",
+    "legacy_tools",
+    "math_tools",
     "record_model",
+    "social_query_tools",
+    "spatial_tools",
     "step_agents_parallel",
     "step_agents_parallel_sync",
 ]
 
 __title__ = "Mesa-LLM"
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 __license__ = "MIT"
 _this_year = datetime.datetime.now(tz=datetime.UTC).date().year
 __copyright__ = f"Copyright {_this_year} Project Mesa Team"
