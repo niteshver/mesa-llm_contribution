@@ -31,7 +31,7 @@ def die(agent: "LLMAgent") -> str:
     agent.health = 0
     agent.model.remove_agent(agent)
 
-    return f"Agent {agent.unique_id} has died and was removed."
+    return f"Agent {agent.unique_id} has died."
 
 
 @tool(tool_manager=martian_tool_manager)
@@ -71,6 +71,7 @@ def produce_resource(agent: "LLMAgent") -> str:
         agent.model.settlement_food += 10
         agent.model.settlement_water += 15
         agent.model.settlement_air += 5
+        agent.resources_produced += 1
 
         agent.coping_capacity = min(1.5, agent.coping_capacity + 0.05)
 

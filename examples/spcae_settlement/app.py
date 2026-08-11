@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from mesa.visualization import (
     SolaraViz,
     make_plot_component,
-    make_space_component,
 )
 
 from examples.spcae_settlement.agent import MartianAgent, StressorAgent
@@ -94,7 +93,6 @@ def mars_geo_portrayal(agent):
     return None
 
 
-space_component = make_space_component(settlement_portrayal)
 chart_component = make_plot_component(
     [
         "Population",
@@ -104,7 +102,7 @@ chart_component = make_plot_component(
     ]
 )
 
-components = [space_component, chart_component]
+components = [chart_component]
 if make_geospace_component is not None and model.space is not None:
     components.insert(
         0,
