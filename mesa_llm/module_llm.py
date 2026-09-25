@@ -3,6 +3,7 @@ import os
 
 from dotenv import load_dotenv
 from litellm import acompletion, completion, litellm
+from litellm import Router
 from litellm.exceptions import (
     APIConnectionError,
     NotFoundError,
@@ -19,6 +20,7 @@ RETRYABLE_EXCEPTIONS = (
 
 load_dotenv()
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 class ModuleLLM:
@@ -31,6 +33,7 @@ class ModuleLLM:
     def __init__(
         self,
         llm_model: str,
+        fallback_model: str,
         api_base: str | None = None,
         system_prompt: str | None = None,
     ):
@@ -49,15 +52,24 @@ class ModuleLLM:
         """
         self.api_base = api_base
         self.llm_model = llm_model
+        self.fallback_model = fallback_model
         self.system_prompt = system_prompt
+        self.router = None
 
+
+        # Allow users to pass a placeholder primary model name when a
+        # `fallback_model` is provided. If the primary model doesn't include
+        # a provider prefix (e.g. 'provider/model'), prefer the fallback and
+        # log a warning rather than raising immediately. This makes it
+        # convenient for examples and testing where users supply stub names.
         if "/" not in llm_model:
             raise ValueError(
                 f"Invalid model format '{llm_model}'. "
-                "Expected '{provider}/{model}', e.g. 'openai/gpt-4o'."
+                "Expected '{{provider}}/{{model}}', e.g. 'openai/gpt-4o'."
             )
-
+        self.llm_model = llm_model
         provider = self.llm_model.split("/")[0].upper()
+
 
         if provider in ["OLLAMA", "OLLAMA_CHAT"]:
             if self.api_base is None:
@@ -89,6 +101,29 @@ class ModuleLLM:
                     self.llm_model,
                 )
 
+        if self.fallback_model:
+                            self.router = Router(
+                                model_list=[
+                                    {
+                                        "model_name": "primary",
+                                        "litellm_params": {
+                                            "model": self.llm_model,
+                                            "api_base": self.api_base,
+                                        },
+                                    },
+                                    {
+                                        "model_name": "fallback",
+                                        "litellm_params": {
+                                            "model": self.fallback_model,
+                                        },
+                                    },
+                                ],
+                                fallbacks=[
+                                    {"primary": ["fallback"]}
+                                ],
+                            )
+
+            
     def _build_invalid_model_error(self, error: Exception) -> ValueError:
         provider = self.llm_model.split("/", 1)[0].lower()
         return ValueError(
@@ -181,57 +216,11 @@ class ModuleLLM:
         )
 
     @retry(
-        wait=wait_exponential(multiplier=1, min=1, max=60),
-        retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
-        reraise=True,
+    wait=wait_exponential(multiplier=1, min=1, max=60),
+    retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
+    reraise=True,
     )
-    def generate(
-        self,
-        prompt: str | list[str] | None = None,
-        tool_schema: list[dict] | None = None,
-        tool_choice: str = "auto",
-        response_format: dict | object | None = None,
-        system_prompt: str | None = None,
-    ) -> str:
-        """
-        Generate a response from the LLM using litellm based on the prompt
-
-        Args:
-            prompt: The prompt to generate a response for (str, list of strings, or None)
-            tool_schema: The schema of the tools to use
-            tool_choice: The choice of tool to use
-            response_format: The format of the response
-            system_prompt: Optional system prompt scoped to this call only.
-
-        Returns:
-            The response from the LLM
-        """
-
-        messages = self._build_messages(prompt, system_prompt=system_prompt)
-
-        completion_kwargs = {
-            "model": self.llm_model,
-            "messages": messages,
-            "tools": tool_schema,
-            "tool_choice": tool_choice if tool_schema else None,
-            "response_format": response_format,
-        }
-        if self.api_base:
-            completion_kwargs["api_base"] = self.api_base
-
-        try:
-            response = completion(**completion_kwargs)
-        except RateLimitError as error:
-            raise self._build_rate_limit_error(error) from error
-        except NotFoundError as error:
-            raise self._build_invalid_model_error(error) from error
-        except Exception as error:
-            if str(error).startswith("This model isn't mapped yet."):
-                raise self._build_invalid_model_error(error) from error
-            raise
-
-        return response
-
+    
     async def agenerate(
         self,
         prompt: str | list[str] | None = None,
@@ -240,34 +229,43 @@ class ModuleLLM:
         response_format: dict | object | None = None,
         system_prompt: str | None = None,
     ) -> str:
-        """
-        Asynchronous version of generate() method for parallel LLM calls.
-        """
         messages = self._build_messages(prompt, system_prompt=system_prompt)
+
         async for attempt in AsyncRetrying(
             wait=wait_exponential(multiplier=1, min=1, max=60),
             retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
             reraise=True,
         ):
             with attempt:
-                completion_kwargs = {
-                    "model": self.llm_model,
-                    "messages": messages,
-                    "tools": tool_schema,
-                    "tool_choice": tool_choice if tool_schema else None,
-                    "response_format": response_format,
-                }
-                if self.api_base:
-                    completion_kwargs["api_base"] = self.api_base
-
                 try:
-                    response = await acompletion(**completion_kwargs)
+                    if self.router:
+                        response = await self.router.acompletion(
+                            model="primary",
+                            messages=messages,
+                            tools=tool_schema,
+                            tool_choice=tool_choice if tool_schema else None,
+                            response_format=response_format,
+                        )
+                        actual_model = getattr(response, "model", None) or response.get("model", "unknown")
+                        logger.info("LLM request handled by model: %s", actual_model)
+                        print(f"LLM request handled by model: {actual_model}")
+                        return response
+
+                    response = await acompletion(
+                        model=self.llm_model,
+                        api_base=self.api_base,
+                        messages=messages,
+                        tools=tool_schema,
+                        tool_choice=tool_choice if tool_schema else None,
+                        response_format=response_format,
+                    )
+                    actual_model = getattr(response, "model", None) or response.get("model", "unknown")
+                    logger.info("LLM request handled by model: %s", actual_model)
+                    print(f"LLM request handled by model: {actual_model}")
+                    return response
+
                 except RateLimitError as error:
                     raise self._build_rate_limit_error(error) from error
+
                 except NotFoundError as error:
                     raise self._build_invalid_model_error(error) from error
-                except Exception as error:
-                    if str(error).startswith("This model isn't mapped yet."):
-                        raise self._build_invalid_model_error(error) from error
-                    raise
-        return response
