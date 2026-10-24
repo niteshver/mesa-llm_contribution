@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
@@ -79,6 +80,8 @@ class ReActReasoning(Reasoning):
         tools: ToolSelection | object = _UNSET,
         tool_calls: str | None = "auto",
         selected_tools: ToolSelection | object = _UNSET,
+        stream: bool | str | None = None,
+        stream_callback: Callable[[str], None] | None = None,
     ) -> Plan:
         """
         Plan the next (ReAct) action based on the current observation and the
@@ -128,6 +131,8 @@ class ReActReasoning(Reasoning):
             tool_choice="none",
             response_format=ReActOutput,
             system_prompt=react_system_prompt,
+            stream=stream,
+            stream_callback=stream_callback,
         )
 
         formatted_response = json.loads(rsp.choices[0].message.content)
@@ -152,6 +157,8 @@ class ReActReasoning(Reasoning):
         tools: ToolSelection | object = _UNSET,
         tool_calls: str | None = "auto",
         selected_tools: ToolSelection | object = _UNSET,
+        stream: bool | str | None = None,
+        stream_callback: Callable[[str], None] | None = None,
     ) -> Plan:
         """
         Asynchronous version of plan() method for parallel planning.
@@ -197,6 +204,8 @@ class ReActReasoning(Reasoning):
             tool_choice="none",
             response_format=ReActOutput,
             system_prompt=react_system_prompt,
+            stream=stream,
+            stream_callback=stream_callback,
         )
 
         formatted_response = json.loads(rsp.choices[0].message.content)

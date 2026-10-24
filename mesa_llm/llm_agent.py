@@ -49,6 +49,7 @@ class LLMAgent(Agent):
             exposed to the reasoning module.
         step_prompt (str | None): Optional task-specific prompt used to guide
             the agent each step.
+        stream (bool | None): Enable streaming for the LLM output.
         api_base (str | None): Optional custom LiteLLM-compatible base URL for
             self-hosted or remote inference endpoints.
         tools (list[Callable | str] | tuple[Callable | str, ...] | None):
@@ -70,6 +71,7 @@ class LLMAgent(Agent):
         vision: float | None = None,
         internal_state: list[str] | str | None = None,
         step_prompt: str | None = None,
+        stream: bool | None = None,
         api_base: str | None = None,
         tools: list[Callable | str] | tuple[Callable | str, ...] | None = None,
     ):
@@ -77,8 +79,12 @@ class LLMAgent(Agent):
 
         self.model = model
         self.step_prompt = step_prompt
+        self.stream = bool(stream) if stream is not None else False
         self.llm = ModuleLLM(
-            llm_model=llm_model, system_prompt=system_prompt, api_base=api_base
+            llm_model=llm_model,
+            system_prompt=system_prompt,
+            api_base=api_base,
+            stream=self.stream,
         )
 
         self.memory = STLTMemory(

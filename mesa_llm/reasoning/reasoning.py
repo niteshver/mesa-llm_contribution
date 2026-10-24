@@ -124,6 +124,8 @@ class Reasoning(ABC):
         tools: ToolSelection | object = _UNSET,
         tool_calls: str | None = "auto",
         selected_tools: ToolSelection | object = _UNSET,
+        stream: bool | str | None = None,
+        stream_callback: Callable[[str], None] | None = None,
     ) -> Plan:
         """Generate a plan for the next action.
 
@@ -163,6 +165,8 @@ class Reasoning(ABC):
         tools: ToolSelection | object = _UNSET,
         tool_calls: str | None = "auto",
         selected_tools: ToolSelection | object = _UNSET,
+        stream: bool | str | None = None,
+        stream_callback: Callable[[str], None] | None = None,
     ) -> Plan:
         """
         Asynchronous version of plan() method for parallel planning.
@@ -180,6 +184,8 @@ class Reasoning(ABC):
             tools=tools,
             tool_calls=tool_calls,
             selected_tools=selected_tools,
+            stream=stream,
+            stream_callback=stream_callback,
         )
 
     def execute_tool_call(
@@ -189,6 +195,7 @@ class Reasoning(ABC):
         ttl: int = 1,
         tool_calls: str | None = "auto",
         selected_tools: ToolSelection | object = _UNSET,
+        stream: bool | str | None = None,
     ):
         """Turn a natural-language plan into tool calls.
 
@@ -214,7 +221,12 @@ class Reasoning(ABC):
                 Mesa-LLM currently exposes only these string choices, not
                 provider-specific object forms. See LiteLLM docs:
                 https://docs.litellm.ai/
+            stream: Optional per-call streaming override.
         """
+        # Ollama emits tool calls correctly only for non-streamed completions.
+        # Keep planning streamable, but preserve executable calls by default.
+        if stream is None and self.agent.llm.stream:
+            stream = False
         system_prompt = (
             "You are an executor that executes the plan given to you in the prompt through tool calls. "
             "If the plan concludes that no action should be taken, do not call any tool."
@@ -225,6 +237,7 @@ class Reasoning(ABC):
             tool_schema=self._get_tools_schema(tools),
             tool_choice=tool_calls,
             system_prompt=system_prompt,
+            stream=stream,
         )
         response_message = rsp.choices[0].message
         plan = Plan(
@@ -246,6 +259,7 @@ class Reasoning(ABC):
         ttl: int = 1,
         tool_calls: str | None = "auto",
         selected_tools: ToolSelection | object = _UNSET,
+        stream: bool | str | None = None,
     ):
         """
         Asynchronous version of execute_tool_call() method.
@@ -255,6 +269,9 @@ class Reasoning(ABC):
         ``[]`` exposes no tools, and a callable, string name, or sequence
         exposes exactly those configured tools.
         """
+        # See execute_tool_call: streamed Ollama tool responses lose tool-call data.
+        if stream is None and self.agent.llm.stream:
+            stream = False
         system_prompt = (
             "You are an executor that executes the plan given to you in the prompt through tool calls. "
             "If the plan concludes that no action should be taken, do not call any tool."
@@ -265,6 +282,7 @@ class Reasoning(ABC):
             tool_schema=self._get_tools_schema(tools),
             tool_choice=tool_calls,
             system_prompt=system_prompt,
+            stream=stream,
         )
         response_message = rsp.choices[0].message
         plan = Plan(

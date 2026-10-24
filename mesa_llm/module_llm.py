@@ -1,5 +1,7 @@
 import logging
 import os
+from collections.abc import Callable
+from types import SimpleNamespace
 
 from dotenv import load_dotenv
 from litellm import acompletion, completion, litellm
@@ -33,6 +35,7 @@ class ModuleLLM:
         llm_model: str,
         api_base: str | None = None,
         system_prompt: str | None = None,
+        stream: bool | str | None = None,
     ):
         """
         Initialize the LLM module
@@ -42,6 +45,7 @@ class ModuleLLM:
                 "{provider}/{model}" (for example, "openai/gpt-4o").
             api_base: The API base to use if the LLM provider is Ollama
             system_prompt: The system prompt to use for the LLM
+            stream: Whether streaming responses should be enabled by default.
 
         Raises:
             ValueError: If llm_model is not in the expected "{provider}/{model}"
@@ -50,6 +54,7 @@ class ModuleLLM:
         self.api_base = api_base
         self.llm_model = llm_model
         self.system_prompt = system_prompt
+        self.stream = self._normalize_stream_flag(stream)
 
         if "/" not in llm_model:
             raise ValueError(
@@ -88,6 +93,61 @@ class ModuleLLM:
                     "%s does not support function calling. This model may not be able to use tools. Please check the model documentation at https://docs.litellm.ai/docs/providers for more information.",
                     self.llm_model,
                 )
+
+    @staticmethod
+    def _normalize_stream_flag(value: bool | str | None) -> bool:
+        if value is None:
+            return False
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+    @staticmethod
+    def _extract_stream_content(chunk) -> str:
+        """Extract incremental text content from a LiteLLM streaming chunk."""
+        if isinstance(chunk, dict):
+            choices = chunk.get("choices") or []
+            if not choices:
+                return ""
+            first_choice = choices[0]
+            delta = first_choice.get("delta") or {}
+            if isinstance(delta, dict):
+                content = delta.get("content")
+                return "" if content is None else str(content)
+            message = first_choice.get("message") or {}
+            content = message.get("content")
+            return "" if content is None else str(content)
+
+        choices = getattr(chunk, "choices", None) or []
+        if not choices:
+            return ""
+        first_choice = choices[0]
+
+        delta = getattr(first_choice, "delta", None)
+        if delta is not None:
+            content = getattr(delta, "content", None)
+            if content is not None:
+                return str(content)
+
+        message = getattr(first_choice, "message", None)
+        if message is not None:
+            content = getattr(message, "content", None)
+            if content is not None:
+                return str(content)
+
+        return ""
+
+    @staticmethod
+    def _build_stream_response(text: str):
+        """Create a response-like object matching the normal non-stream API."""
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(content=text),
+                    finish_reason="stop",
+                )
+            ]
+        )
 
     def _build_invalid_model_error(self, error: Exception) -> ValueError:
         provider = self.llm_model.split("/", 1)[0].lower()
@@ -192,21 +252,16 @@ class ModuleLLM:
         tool_choice: str = "auto",
         response_format: dict | object | None = None,
         system_prompt: str | None = None,
+        stream: bool | str | None = None,
+        stream_callback: Callable[[str], None] | None = None,
     ) -> str:
         """
-        Generate a response from the LLM using litellm based on the prompt
+        Generate a response from the LLM using litellm based on the prompt.
 
-        Args:
-            prompt: The prompt to generate a response for (str, list of strings, or None)
-            tool_schema: The schema of the tools to use
-            tool_choice: The choice of tool to use
-            response_format: The format of the response
-            system_prompt: Optional system prompt scoped to this call only.
-
-        Returns:
-            The response from the LLM
+        When ``stream`` is enabled, the incremental text is accumulated and a
+        response object matching the non-streaming API is returned.
         """
-
+        stream = self._normalize_stream_flag(stream) if stream is not None else self.stream
         messages = self._build_messages(prompt, system_prompt=system_prompt)
 
         completion_kwargs = {
@@ -215,12 +270,23 @@ class ModuleLLM:
             "tools": tool_schema,
             "tool_choice": tool_choice if tool_schema else None,
             "response_format": response_format,
+            "stream": stream,
         }
         if self.api_base:
             completion_kwargs["api_base"] = self.api_base
 
         try:
             response = completion(**completion_kwargs)
+            if stream:
+                collected = []
+                for chunk in response:
+                    chunk_text = self._extract_stream_content(chunk)
+                    if chunk_text:
+                        collected.append(chunk_text)
+                        if stream_callback is not None:
+                            stream_callback(chunk_text)
+                return self._build_stream_response("".join(collected))
+            return response
         except RateLimitError as error:
             raise self._build_rate_limit_error(error) from error
         except NotFoundError as error:
@@ -230,8 +296,6 @@ class ModuleLLM:
                 raise self._build_invalid_model_error(error) from error
             raise
 
-        return response
-
     async def agenerate(
         self,
         prompt: str | list[str] | None = None,
@@ -239,10 +303,13 @@ class ModuleLLM:
         tool_choice: str = "auto",
         response_format: dict | object | None = None,
         system_prompt: str | None = None,
+        stream: bool | str | None = None,
+        stream_callback: Callable[[str], None] | None = None,
     ) -> str:
         """
         Asynchronous version of generate() method for parallel LLM calls.
         """
+        stream = self._normalize_stream_flag(stream) if stream is not None else self.stream
         messages = self._build_messages(prompt, system_prompt=system_prompt)
         async for attempt in AsyncRetrying(
             wait=wait_exponential(multiplier=1, min=1, max=60),
@@ -256,12 +323,23 @@ class ModuleLLM:
                     "tools": tool_schema,
                     "tool_choice": tool_choice if tool_schema else None,
                     "response_format": response_format,
+                    "stream": stream,
                 }
                 if self.api_base:
                     completion_kwargs["api_base"] = self.api_base
 
                 try:
                     response = await acompletion(**completion_kwargs)
+                    if stream:
+                        collected = []
+                        async for chunk in response:
+                            chunk_text = self._extract_stream_content(chunk)
+                            if chunk_text:
+                                collected.append(chunk_text)
+                                if stream_callback is not None:
+                                    stream_callback(chunk_text)
+                        return self._build_stream_response("".join(collected))
+                    return response
                 except RateLimitError as error:
                     raise self._build_rate_limit_error(error) from error
                 except NotFoundError as error:

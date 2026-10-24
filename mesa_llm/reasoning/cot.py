@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from mesa_llm.reasoning.reasoning import (
@@ -108,6 +109,8 @@ class CoTReasoning(Reasoning):
         tools: ToolSelection | object = _UNSET,
         tool_calls: str | None = "auto",
         selected_tools: ToolSelection | object = _UNSET,
+        stream: bool | str | None = None,
+        stream_callback: Callable[[str], None] | None = None,
     ) -> Plan:
         """
         Plan the next (CoT) action based on the current observation and the
@@ -150,6 +153,8 @@ class CoTReasoning(Reasoning):
             tool_schema=self._get_tools_schema(tools),
             tool_choice="none",
             system_prompt=system_prompt,
+            stream=stream,
+            stream_callback=stream_callback,
         )
 
         chaining_message = rsp.choices[0].message.content
@@ -175,6 +180,8 @@ class CoTReasoning(Reasoning):
         tools: ToolSelection | object = _UNSET,
         tool_calls: str | None = "auto",
         selected_tools: ToolSelection | object = _UNSET,
+        stream: bool | str | None = None,
+        stream_callback: Callable[[str], None] | None = None,
     ) -> Plan:
         """
         Asynchronous version of plan() method for parallel planning.
@@ -213,6 +220,8 @@ class CoTReasoning(Reasoning):
             tool_schema=self._get_tools_schema(tools),
             tool_choice="none",
             system_prompt=system_prompt,
+            stream=stream,
+            stream_callback=stream_callback,
         )
 
         chaining_message = rsp.choices[0].message.content
