@@ -83,7 +83,6 @@ class TestModuleLLM:
         assert llm.api_key is None
         assert llm.active_model == "openai/gpt-4o"
 
-    
     def test_generate_switches_to_fallback_when_primary_fails(self, monkeypatch):
         calls = []
 
@@ -95,9 +94,7 @@ class TestModuleLLM:
 
             return {
                 "model": "ollama/llama3",
-                "choices": [
-                    {"message": {"content": "ok"}}
-                ],
+                "choices": [{"message": {"content": "ok"}}],
             }
 
         monkeypatch.setattr(

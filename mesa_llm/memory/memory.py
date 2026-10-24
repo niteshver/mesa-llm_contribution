@@ -320,7 +320,9 @@ class Memory(ABC):
         """
         self.agent = agent
         if llm_model:
-            self.llm = ModuleLLM(llm_model=llm_model, fallback_model=fallback_model, api_base=api_base)
+            self.llm = ModuleLLM(
+                llm_model=llm_model, fallback_model=fallback_model, api_base=api_base
+            )
 
         self.display = display
 
