@@ -19,13 +19,12 @@ class EpsteinModel(Model):
         reasoning: type[Reasoning],
         llm_model: str,
         vision: int,
-        parallel_stepping=True,
+        api_base: str | None = None,
         seed=None,
     ):
         super().__init__(seed=seed)
         self.width = width
         self.height = height
-        self.parallel_stepping = parallel_stepping
         self.grid = MultiGrid(self.height, self.width, torus=False)
 
         model_reporters = {
@@ -65,6 +64,7 @@ class EpsteinModel(Model):
             vision=vision,
             internal_state=None,
             step_prompt="Inspect your local vision and arrest a random active agent. Move if applicable.",
+            api_base=api_base,
         )
 
         x = self.rng.integers(0, self.grid.width, size=(initial_cops,))
@@ -82,6 +82,7 @@ class EpsteinModel(Model):
             vision=vision,
             internal_state=None,
             step_prompt="Move around and change your state if the conditions indicate it.",
+            api_base=api_base,
         )
 
         x = self.rng.integers(0, self.grid.width, size=(initial_citizens,))

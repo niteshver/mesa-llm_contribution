@@ -9,6 +9,7 @@ import json
 import logging
 import pickle
 import uuid
+import warnings
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -134,6 +135,15 @@ class SimulationRecorder:
             else:
                 formatted_content = {"data": content}
 
+        # If recording continues after a save/checkpoint, discard the previous
+        # terminal marker so newly recorded events stay chronologically valid.
+        if (
+            event_type != "simulation_end"
+            and self.events
+            and self.events[-1].event_type == "simulation_end"
+        ):
+            self.events.pop()
+
         # Create the event
         event_id = f"{self.simulation_id}_{len(self.events):06d}"
 
@@ -205,16 +215,22 @@ class SimulationRecorder:
 
         Args:
             filename: Optional filename. If None, auto-generates based on format.
-            format: Save format, either "json" or "pickle".
+            format: Save format, either "json" or deprecated "pickle".
         """
         if format not in ["json", "pickle"]:
             raise ValueError("Format must be 'json' or 'pickle'")
 
         if filename is None:
             extension = "json" if format == "json" else "pkl"
-            filename = f"simulation_{self.simulation_id}_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.{extension}"
+            filename = (
+                f"simulation_{self.simulation_id}_"
+                f"{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.{extension}"
+            )
 
         filepath = self.output_dir / filename
+
+        if self.events and self.events[-1].event_type == "simulation_end":
+            self.events.pop()
 
         # Update metadata with final state
         self.simulation_metadata.update(
@@ -240,8 +256,14 @@ class SimulationRecorder:
             }
         )
 
-        # Record final model state
-        self.record_model_event(
+        # Replace the terminal "simulation_end" marker on each save. `save()`
+        # is also used for autosave checkpoints, so the first "simulation_end"
+        # marker must not be frozen forever.
+        simulation_end_event = SimulationEvent(
+            event_id=f"{self.simulation_id}_{len(self.events):06d}",
+            timestamp=datetime.now(UTC),
+            step=self.model.steps,
+            agent_id=None,
             event_type="simulation_end",
             content={
                 "status": (
@@ -256,7 +278,9 @@ class SimulationRecorder:
                 "final_step": self.model.steps,
                 "total_events": len(self.events),
             },
+            metadata={"source": "model"},
         )
+        self.events.append(simulation_end_event)
 
         # Prepare export data
         export_data = {
@@ -272,11 +296,17 @@ class SimulationRecorder:
             },
         }
 
-        # Save based on format
         if format == "json":
             with open(filepath, "w") as f:
                 json.dump(export_data, f, indent=2, default=str)
-        elif format == "pickle":
+        else:
+            warnings.warn(
+                "Pickle recording support is deprecated and will be removed "
+                "in a future release. Pickle files can execute arbitrary code "
+                "when loaded. Use JSON recordings instead.",
+                FutureWarning,
+                stacklevel=2,
+            )
             with open(filepath, "wb") as f:
                 pickle.dump(export_data, f)
 

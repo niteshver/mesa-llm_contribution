@@ -2,10 +2,6 @@ import mesa
 
 from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.memory.st_lt_memory import STLTMemory
-from mesa_llm.tools.tool_manager import ToolManager
-
-trader_tool_manager = ToolManager()
-resource_tool_manager = ToolManager()
 
 
 class Trader(LLMAgent, mesa.discrete_space.CellAgent):
@@ -22,6 +18,7 @@ class Trader(LLMAgent, mesa.discrete_space.CellAgent):
         spice=0,
         metabolism_sugar=1,
         metabolism_spice=1,
+        api_base=None,
     ):
         super().__init__(
             model=model,
@@ -31,6 +28,8 @@ class Trader(LLMAgent, mesa.discrete_space.CellAgent):
             vision=vision,
             internal_state=internal_state,
             step_prompt=step_prompt,
+            api_base=api_base,
+            actions=["move_to_best_resource", "propose_trade"],
         )
         self.sugar = sugar
         self.spice = spice
@@ -43,10 +42,9 @@ class Trader(LLMAgent, mesa.discrete_space.CellAgent):
         self.memory = STLTMemory(
             agent=self,
             display=True,
-            llm_model="openai/gpt-4o-mini",
+            llm_model=llm_model,
+            api_base=api_base,
         )
-
-        self.tool_manager = trader_tool_manager
 
         self.system_prompt = (
             "You are a Trader agent in a Sugarscape simulation. "
@@ -112,12 +110,10 @@ class Trader(LLMAgent, mesa.discrete_space.CellAgent):
 
         observation = self.generate_obs()
 
-        plan = self.reasoning.plan(
-            obs=observation,
-            selected_tools=["move_to_best_resource", "propose_trade"],
+        self.act(
+            prompt=[self.step_prompt, f"OBSERVATION:\n{observation}"],
+            actions=["move_to_best_resource", "propose_trade"],
         )
-
-        self.apply_plan(plan)
 
     async def astep(self):
         self.sugar -= self.metabolism_sugar
@@ -131,11 +127,10 @@ class Trader(LLMAgent, mesa.discrete_space.CellAgent):
         self.update_internal_metrics()
         observation = self.generate_obs()
 
-        plan = await self.reasoning.aplan(
-            obs=observation,
-            selected_tools=["move_to_best_resource", "propose_trade"],
+        await self.aact(
+            prompt=[self.step_prompt, f"OBSERVATION:\n{observation}"],
+            actions=["move_to_best_resource", "propose_trade"],
         )
-        self.apply_plan(plan)
 
 
 class Resource(mesa.discrete_space.CellAgent):
@@ -150,8 +145,6 @@ class Resource(mesa.discrete_space.CellAgent):
         self.type = type
 
         self.internal_state = []
-
-        self.tool_manager = resource_tool_manager
 
     def get_trade(self):
         return []

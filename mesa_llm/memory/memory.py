@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections import Counter
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -11,6 +12,77 @@ if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent
 
 
+def _format_message_entry(msg_value) -> str:
+    """Render a message memory value as a readable string.
+
+    Handles the nested dict produced by the speak_to action:
+        {"message": "<text>", "sender": <id>, "recipients": [...]}
+    as well as plain strings stored by legacy or test code.
+    """
+    if isinstance(msg_value, dict):
+        text = msg_value.get("message", str(msg_value))
+        sender = msg_value.get("sender")
+        if sender is not None:
+            return f"Agent {sender} says: {text}"
+        return str(text)
+    return str(msg_value)
+
+
+def _ordered_event_payloads(
+    content: dict,
+    event_order,
+    event_types: tuple[str, ...],
+) -> list[tuple[str, object]]:
+    """Return selected grouped events in their captured insertion order.
+
+    Older entries and malformed sidecars use the historical deterministic
+    mapping order. Validation happens before replay so a partially valid
+    sidecar can never drop or duplicate part of a content object.
+    """
+    selected_types = set(event_types)
+    ordered_types = (
+        {marker for marker in event_order if isinstance(marker, str)}
+        if isinstance(event_order, list | tuple)
+        else set()
+    )
+    grouped_values = {
+        event_type: value if isinstance(value, list) else [value]
+        for event_type, value in content.items()
+        if event_type in selected_types or event_type in ordered_types
+    }
+    fallback = [
+        (event_type, payload)
+        for event_type, payloads in grouped_values.items()
+        if event_type in selected_types
+        for payload in payloads
+    ]
+
+    if not isinstance(event_order, list | tuple) or not event_order:
+        return fallback
+
+    if any(
+        not isinstance(marker, str) or marker not in grouped_values
+        for marker in event_order
+    ):
+        return fallback
+    marker_counts = Counter(event_order)
+    if any(
+        marker_counts[event_type] != len(payloads)
+        for event_type, payloads in grouped_values.items()
+    ):
+        return fallback
+
+    cursors = dict.fromkeys(grouped_values, 0)
+    ordered = []
+    for event_type in event_order:
+        cursor = cursors[event_type]
+        payload = grouped_values[event_type][cursor]
+        cursors[event_type] = cursor + 1
+        if event_type in selected_types:
+            ordered.append((event_type, payload))
+    return ordered
+
+
 @dataclass
 class MemoryEntry:
     """
@@ -20,6 +92,9 @@ class MemoryEntry:
     content: dict
     step: int | None
     agent: "LLMAgent"
+
+    def __post_init__(self):
+        self._event_order: list[str] = []
 
     def __str__(self) -> str:
         """
@@ -61,17 +136,17 @@ class MemoryEntry:
                 continue
 
             lines.append(f"\n[bold cyan][{key.title()}][/bold cyan]")
-            if isinstance(value, dict):
-                lines.extend(format_nested_dict(value, 1))
-            elif isinstance(value, list):
-                for i, item in enumerate(value):
+            if isinstance(value, list):
+                for i, item in enumerate(value, 1):
+                    lines.append(f"   [blue]({i})[/blue]")
                     if isinstance(item, dict):
-                        lines.append(f"   [blue]├──[/blue] [cyan]({i + 1})[/cyan]")
                         lines.extend(format_nested_dict(item, 2))
                     else:
-                        lines.append(f"   [blue]├──[/blue] [cyan]{item}[/cyan]")
+                        lines.append(f"      [blue]└──[/blue] [cyan]{item}[/cyan]")
+            elif isinstance(value, dict):
+                lines.extend(format_nested_dict(value, 1))
             else:
-                lines.append(f"   [blue]└──[/blue] [cyan]{value} :[/cyan]")
+                lines.append(f"   [blue]└──[/blue] [cyan]{value}[/cyan]")
 
         content = "\n".join(lines)
 
@@ -91,42 +166,168 @@ class MemoryEntry:
             console.print(panel)
 
 
+class _EventOrder(list):
+    """A private list whose mutation version makes append validation cheap.
+
+    Plain lists supplied by legacy callers retain their identity and use the
+    conservative validation path instead. Increment before mutation because
+    operations such as extend or sort can change a list before raising.
+    """
+
+    _version = 0
+
+    def __init__(self, values=()):
+        self._version += 1
+        super().__init__(values)
+
+    def __setitem__(self, key, value):
+        self._version += 1
+        return super().__setitem__(key, value)
+
+    def __delitem__(self, key):
+        self._version += 1
+        return super().__delitem__(key)
+
+    def append(self, value):
+        self._version += 1
+        return super().append(value)
+
+    def extend(self, values):
+        self._version += 1
+        return super().extend(values)
+
+    def insert(self, index, value):
+        self._version += 1
+        return super().insert(index, value)
+
+    def pop(self, index=-1):
+        self._version += 1
+        return super().pop(index)
+
+    def remove(self, value):
+        self._version += 1
+        return super().remove(value)
+
+    def clear(self):
+        self._version += 1
+        return super().clear()
+
+    def reverse(self):
+        self._version += 1
+        return super().reverse()
+
+    def sort(self, *, key=None, reverse=False):
+        self._version += 1
+        return super().sort(key=key, reverse=reverse)
+
+    def __iadd__(self, values):
+        self._version += 1
+        return super().__iadd__(values)
+
+    def __imul__(self, count):
+        self._version += 1
+        return super().__imul__(count)
+
+
 class Memory(ABC):
     """
-    Create a memory generic parent class that can be used to create different types of memories
+    Generic parent class for memory backends.
 
     Attributes:
         agent : the agent that the memory belongs to
         llm_model : the model to use for the summarization if used
         display : whether to display the memory
+        additive_event_types : event types that accumulate multiple values
+            within a step. Defaults to ``{"message", "action"}``.
 
     Content Addition
         - Before each agent step, the agent can add new events to the memory through `add_to_memory(type, content)` so that the memory can be used to reason about the most recent events as well as the past events.
-        - During the step, actions, messages, and plans are added to the memory through `add_to_memory(type, content)`
+        - During the step, content for types in ``additive_event_types`` is accumulated as a list; all other types overwrite the previous value for that step.
         - At the end of the step, the memory is processed via `process_step()`, managing when memory entries are added,consolidated, displayed, or removed
+
+    Default behavior
+        - By default, ``additive_event_types == {"message", "action"}``.
+        - Repeated ``message`` or ``action`` entries within one step are accumulated as a list.
+        - Repeated ``observation`` or ``plan`` entries within one step overwrite the previous value unless configured otherwise.
     """
+
+    _STEP_EVENT_ORDER_STORAGE_KEY = "_step_event_order_storage"
+
+    @property
+    def _step_event_order(self) -> list[str]:
+        """Return this instance's event-order buffer.
+
+        Older and partially initialized memory instances may not have the
+        backing state introduced for ordered additive events. Lazily creating
+        it here keeps every read safe without sharing mutable class state. A
+        legacy value stored under the descriptor's attribute name is migrated by
+        identity when possible.
+        """
+        instance_state = self.__dict__
+        storage_key = Memory._STEP_EVENT_ORDER_STORAGE_KEY
+        event_order = instance_state.get(storage_key)
+
+        if isinstance(event_order, list):
+            instance_state.pop("_step_event_order", None)
+            return event_order
+
+        legacy_event_order = instance_state.get("_step_event_order")
+        if storage_key not in instance_state and isinstance(legacy_event_order, list):
+            event_order = legacy_event_order
+        else:
+            event_order = _EventOrder()
+
+        self.__dict__.pop("_step_event_order_cache", None)
+        instance_state[storage_key] = event_order
+        instance_state.pop("_step_event_order", None)
+        return event_order
+
+    @_step_event_order.setter
+    def _step_event_order(self, event_order: list[str]) -> None:
+        """Store an event-order buffer while preserving valid list identity."""
+        if not isinstance(event_order, list):
+            event_order = _EventOrder()
+        self.__dict__.pop("_step_event_order_cache", None)
+        self.__dict__[Memory._STEP_EVENT_ORDER_STORAGE_KEY] = event_order
+        self.__dict__.pop("_step_event_order", None)
+
+    def _reset_step_event_order(self) -> None:
+        """Start a managed order buffer without retaining the previous step."""
+        self._step_event_order = _EventOrder()
 
     def __init__(
         self,
         agent: "LLMAgent",
         llm_model: str | None = None,
         display: bool = True,
+        api_base: str | None = None,
+        additive_event_types: list[str] | set[str] | tuple[str, ...] | None = None,
     ):
         """
         Initialize the memory
 
         Args:
-            llm_model : the model to use for the summarization
             agent : the agent that the memory belongs to
+            llm_model : the model to use for summarization
+            display : whether to display memory entries in the console
+            api_base : the API base URL to use for the LLM provider
+            additive_event_types : event types that should accumulate multiple
+                values within the same step instead of overwriting. Defaults to
+                ``{"message", "action"}``. For example, ``message`` and
+                ``action`` accumulate by default, while ``observation`` and
+                ``plan`` overwrite unless explicitly included here.
         """
         self.agent = agent
         if llm_model:
-            self.llm = ModuleLLM(llm_model=llm_model)
+            self.llm = ModuleLLM(llm_model=llm_model, api_base=api_base)
 
         self.display = display
 
         self.step_content: dict = {}
-        self.last_observation: dict = {}
+        self._reset_step_event_order()
+        if additive_event_types is None:
+            additive_event_types = {"message", "action"}
+        self.additive_event_types = set(additive_event_types)
 
     @abstractmethod
     def get_prompt_ready(self) -> str:
@@ -153,9 +354,76 @@ class Memory(ABC):
     async def aprocess_step(self, pre_step: bool = False):
         return self.process_step(pre_step)
 
+    @staticmethod
+    def _coerce_additive_values(value):
+        if isinstance(value, list):
+            return list(value)
+        return [value]
+
+    def _normalized_step_event_order(
+        self,
+        content: dict,
+        event_order,
+    ) -> list[str]:
+        """Return a complete order for one staged or current step segment.
+
+        A valid sidecar is preserved exactly. Legacy, missing, or malformed
+        metadata falls back to the segment's deterministic grouped-content
+        order, without using unrelated list-valued fields as event markers.
+        """
+        grouped_counts = {
+            event_type: len(self._coerce_additive_values(value))
+            for event_type, value in content.items()
+            if event_type in self.additive_event_types
+        }
+        fallback = [
+            event_type
+            for event_type, value in content.items()
+            if event_type in self.additive_event_types
+            for _ in self._coerce_additive_values(value)
+        ]
+
+        if not isinstance(event_order, list | tuple):
+            return fallback
+
+        normalized = list(event_order)
+        if any(
+            not isinstance(marker, str) or marker not in grouped_counts
+            for marker in normalized
+        ):
+            return fallback
+        if Counter(normalized) != Counter(grouped_counts):
+            return fallback
+        return normalized
+
+    def _merge_step_contents(self, current_content: dict, staged_content: dict) -> dict:
+        """
+        Merge the current step buffer with staged pre-step content.
+
+        Non-additive keys keep the staged value, matching the previous
+        overwrite semantics during finalization. Additive event types are
+        concatenated in chronological order so events from both halves of the
+        step are preserved.
+        """
+        merged = dict(current_content)
+        for key, staged_value in staged_content.items():
+            if key in self.additive_event_types and key in merged:
+                merged[key] = self._coerce_additive_values(
+                    staged_value
+                ) + self._coerce_additive_values(merged[key])
+            else:
+                merged[key] = staged_value
+        return merged
+
     def add_to_memory(self, type: str, content: dict):
         """
-        Add a new entry to the memory
+        Add a new entry to the memory.
+
+        Event types in ``self.additive_event_types`` accumulate multiple values
+        within the same step. All other types use overwrite semantics.
+        By default, ``self.additive_event_types == {"message", "action"}``.
+        For example, repeated ``message`` entries are stored as a list, while
+        repeated ``observation`` entries overwrite the previous value.
         """
         if not isinstance(content, dict):
             raise TypeError(
@@ -163,14 +431,57 @@ class Memory(ABC):
                 f"got {content.__class__.__name__}: {content!r}"
             )
 
-        if type == "observation":
-            # Only store changed parts of observation
-            changed_parts = {
-                k: v for k, v in content.items() if v != self.last_observation.get(k)
+        if type in self.additive_event_types:
+            event_order = self._step_event_order
+            # Count groups, not payloads: ordinary appends must not scan all
+            # prior events. The version also detects same-length sidecar edits.
+            counts = {
+                event_type: len(value) if isinstance(value, list) else 1
+                for event_type, value in self.step_content.items()
+                if event_type in self.additive_event_types
             }
-            if changed_parts:
-                self.step_content[type] = changed_parts
-            self.last_observation = content
+            cached = self.__dict__.get("_step_event_order_cache")
+            if not (
+                isinstance(event_order, _EventOrder)
+                and cached is not None
+                and cached[0] is self.step_content
+                and cached[1] is event_order
+                and cached[2] == event_order._version
+                and cached[3] == self.additive_event_types
+                and cached[4] == counts
+            ):
+                event_order[:] = self._normalized_step_event_order(
+                    self.step_content,
+                    event_order,
+                )
+
+            # Accumulate discrete events so concurrent entries are preserved
+            existing = self.step_content.get(type)
+            if existing is None:
+                self.step_content[type] = [content]
+            elif isinstance(existing, list):
+                existing.append(content)
+            else:
+                # Migrate a legacy single-dict entry into a list
+                self.step_content[type] = [existing, content]
+            event_order.append(type)
+            previous_count = counts.get(type, 0)
+            counts[type] = len(self.step_content[type])
+            if (
+                isinstance(event_order, _EventOrder)
+                and counts[type] == previous_count + 1
+                and all(isinstance(marker, str) for marker in counts)
+            ):
+                self._step_event_order_cache = (
+                    self.step_content,
+                    event_order,
+                    event_order._version,
+                    frozenset(self.additive_event_types),
+                    counts,
+                )
+            else:
+                # Keep plain legacy lists observable by their original aliases.
+                self.__dict__.pop("_step_event_order_cache", None)
         else:
             self.step_content[type] = content
 

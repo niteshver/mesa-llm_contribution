@@ -9,22 +9,21 @@ from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.reasoning.cot import CoTReasoning
 
 class MyAgent(LLMAgent):
-   def __init__(self, model, api_key, **kwargs):
+   def __init__(self, model, **kwargs):
       super().__init__(
             model=model,
-            api_key=api_key,
             reasoning=CoTReasoning,
             llm_model="openai/gpt-4o",
             system_prompt="You are a helpful agent in a simulation.",
             vision=2,  # See 2 cells in each direction
             internal_state=["curious", "cooperative"],
-            step_prompt="Decide what to do next based on your observations."
+            step_prompt="Decide what to do next based on your observations.",
+            api_base=None,  # Set to a custom URL for self-hosted LLMs (e.g., "http://192.168.1.100:11434")
       )
 
       # You can override default memory with EpisodicMemory (default is STLTMemory)
       self.memory = EpisodicMemory(
             agent=self,
-            api_key=api_key,
             llm_model="openai/gpt-4o-mini",
             max_memory=20
       )
@@ -72,6 +71,19 @@ def step(self):
    plan = self.reasoning.plan(obs=obs)
    self.apply_plan(plan)
 ```
+
+`send_message` and `asend_message` process unique, non-self recipients in
+order. Ordinary delivery failures are included in the returned status while
+later recipients continue to be attempted. Sender-history recording happens
+once after recipient delivery; if it fails, the returned status reports a
+post-delivery history failure. Already delivered messages must not be retried
+in response to that status.
+
+## Post-commit observer failures
+
+A normal return from an action commits its state change before Mesa-LLM records the result in memory and an optional recorder. If either post-commit observer raises an `Exception`, Mesa-LLM still attempts the other configured observer once, then raises `ActionPostCommitError`, available from `mesa_llm.actions` and top-level `mesa_llm`. The error reports `committed=True`, the validated `action`, the committed `result`, and the original exception objects in `observer_errors` under `memory` and/or `recorder`.
+
+This error means the action is already committed but may not be fully recorded. Do not retry the action in response: Mesa-LLM does not retry or roll back the action or its observers.
 
 ## API Reference
 

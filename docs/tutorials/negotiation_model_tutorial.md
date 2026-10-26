@@ -34,7 +34,10 @@ This `Model` simulates a basic negotiation scenario involving:
 
 
 ## Tutorial Setup
+
 Ensure you are using Python 3.12 or later.
+
+The example uses **Ollama** as the default LLM provider. Ensure **Ollama** is installed, and the local server is running at `http://localhost:11434`. For detailed setup instructions, refer to the [Tutorial Setup section of the first tutorial](first_model.md#tutorial-setup).
 
 ## Install Mesa-LLM and required packages
 
@@ -343,21 +346,22 @@ if __name__ == "__main__":
 ## Understanding the Output
 Below is an example of the reasoning output produced by `ReActReasoning`:
 ``` bash
-Step 2 | Buyer 2
-────────────────────────────────────────────────────────────
-[Plan]
-- reasoning: Based on my current observation and long-term memory, I recall that my initial offer at step 1 was not rejected by the seller. Considering my short-term memory, I remember that the current budget is still 100, which is greater than the minimum acceptable price of 60. Therefore, I will attempt to make a higher offer, as this may increase my chances of successfully negotiating the purchase.
-- action: speak_to
-
-[Action]
-- tool_calls:
-  1. name: speak_to
-     response: 2 → [] : Hello, agent!
-
-[Message]
-- message: My minimum acceptable price is 60.
-- sender: 1
-- recipients: 2
+╭─ Message ─────────────────────────────────────────────────────────────────────────────╮
+│                                                                                       │
+│    └── message : My minimum acceptable price is 60.                                   │
+│    └── sender : LLMAgent 1                                                            │
+│    └── recipients : [<__main__.Buyer object at 0x13d015450>]                          │
+│                                                                                       │
+│ [Plan]                                                                                │
+│    └── reasoning : As I am at step 1, I don't have any information about the          │
+│ environment or my position. Since my short-term memory is empty and my long-term      │
+│ memory doesn't provide any relevant context, I will focus on getting more             │
+│ information about my surroundings. The current observation suggests that the          │
+│ minimum price is 60, but this might not be directly related to my actions.            │
+│ Therefore, I decide to move one step in a random direction to gather more             │
+│ information about the environment and potentially find some clues or objects.         │
+│    └── action : move_one_step                                                         │
+╰───────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## Exercises
@@ -377,6 +381,3 @@ Try the following exercises to better understand agent communication and reasoni
 4. **Increase the number of steps**
    Run the `Model` for more steps and observe how agent messaging influences
    reasoning over time.
-
-
-

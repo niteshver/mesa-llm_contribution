@@ -1,14 +1,25 @@
+import json
 import math
 from enum import Enum
 
 import mesa
 
+from mesa_llm.actions import move_one_step
 from mesa_llm.llm_agent import LLMAgent
 from mesa_llm.memory.st_lt_memory import STLTMemory
-from mesa_llm.tools.tool_manager import ToolManager
 
-citizen_tool_manager = ToolManager()
-cop_tool_manager = ToolManager()
+_JAIL_SENTENCE_STEP = 0.1
+_JAIL_SENTENCE_EPSILON = 1e-9
+_COP_MOVEMENT_SYSTEM_PROMPT = (
+    "You are a cop in a country that is experiencing civil violence. You are a "
+    "member of the police force. For this step, move one step to a nearby cell."
+)
+_COP_ARREST_SYSTEM_PROMPT = (
+    "You are a cop in a country that is experiencing civil violence. You are a "
+    "member of the police force and your job is to arrest active citizens. You "
+    "can arrest a citizen ONLY if they are active. You can move one step in a "
+    "nearby cell or arrest a citizen."
+)
 
 
 class CitizenState(Enum):
@@ -52,6 +63,7 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
         arrest_prob_constant=0.5,
         regime_legitimacy=0.5,
         threshold=0.5,
+        api_base=None,
     ):
         # Call the superclass constructor with updated internal state
         super().__init__(
@@ -62,6 +74,8 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
             vision=vision,
             internal_state=internal_state,
             step_prompt=step_prompt,
+            api_base=api_base,
+            actions=[move_one_step, "change_state"],
         )
 
         self.hardship = self.random.random()
@@ -77,7 +91,8 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
         self.memory = STLTMemory(
             agent=self,
             display=True,
-            llm_model="openai/gpt-4o-mini",
+            llm_model=llm_model,
+            api_base=api_base,
         )
 
         self.threshold = threshold
@@ -96,7 +111,6 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
         self.internal_state.append(
             f"my current state in the simulation is {self.state}"
         )
-        self.tool_manager = citizen_tool_manager
         self.system_prompt = "You are a citizen in a country that is experiencing civil violence. You are a member of the general population, may or may not be in active rebellion. In general, more your suffering more the tendency for you to become active. You can move one step in a nearby cell or change your state."
 
     def update_estimated_arrest_probability(self):
@@ -130,28 +144,31 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
         )
 
     def step(self):
-        if self.jail_sentence_left == 0:
+        if self.jail_sentence_left <= 0:
             self.update_estimated_arrest_probability()
             observation = self.generate_obs()
-            plan = self.reasoning.plan(
-                obs=observation,
-                selected_tools=["change_state", "move_one_step"],
+            self.act(
+                prompt=[self.step_prompt, f"OBSERVATION:\n{observation}"],
+                actions=["change_state", "move_one_step"],
             )
-            self.apply_plan(plan)
         else:
-            self.jail_sentence_left -= 0.1
+            self._serve_jail_step()
 
     async def astep(self):
-        if self.jail_sentence_left == 0:
+        if self.jail_sentence_left <= 0:
             self.update_estimated_arrest_probability()
             observation = self.generate_obs()
-            plan = await self.reasoning.aplan(
-                obs=observation,
-                selected_tools=["change_state", "move_one_step"],
+            await self.aact(
+                prompt=[self.step_prompt, f"OBSERVATION:\n{observation}"],
+                actions=["change_state", "move_one_step"],
             )
-            self.apply_plan(plan)
         else:
-            self.jail_sentence_left -= 0.1
+            self._serve_jail_step()
+
+    def _serve_jail_step(self):
+        self.jail_sentence_left -= _JAIL_SENTENCE_STEP
+        if self.jail_sentence_left <= _JAIL_SENTENCE_EPSILON:
+            self.jail_sentence_left = 0
 
 
 class Cop(LLMAgent, mesa.discrete_space.CellAgent):
@@ -176,6 +193,7 @@ class Cop(LLMAgent, mesa.discrete_space.CellAgent):
         internal_state,
         step_prompt,
         max_jail_term=2,
+        api_base=None,
     ):
         """
         Create a new Cop.
@@ -193,15 +211,60 @@ class Cop(LLMAgent, mesa.discrete_space.CellAgent):
             vision=vision,
             internal_state=internal_state,
             step_prompt=step_prompt,
+            api_base=api_base,
+            actions=[move_one_step, "arrest_citizen"],
         )
         self.max_jail_term = max_jail_term
-        self.tool_manager = cop_tool_manager
-        self.system_prompt = "You are a cop in a country that is experiencing civil violence. You are a member of the police force and your job is to arrest active citizens. You can arrest a citizen ONLY if they are active. You can move one step in a nearby cell or arrest a citizen."
+        self.system_prompt = _COP_MOVEMENT_SYSTEM_PROMPT
 
         self.memory = STLTMemory(
             agent=self,
             display=True,
-            llm_model="openai/gpt-4o-mini",
+            llm_model=llm_model,
+            api_base=api_base,
+        )
+
+    def _eligible_active_citizen_ids(self, observation) -> list[int]:
+        visible_labels = observation.local_state
+        eligible_ids = [
+            citizen.unique_id
+            for citizen in self.model.agents
+            if isinstance(citizen, Citizen)
+            and citizen.state is CitizenState.ACTIVE
+            and f"{citizen.__class__.__name__} {citizen.unique_id}" in visible_labels
+        ]
+        return sorted(eligible_ids)
+
+    def _action_selection_context(self, observation):
+        eligible_ids = self._eligible_active_citizen_ids(observation)
+        eligible_context = json.dumps({"eligible_active_citizen_ids": eligible_ids})
+
+        if not eligible_ids:
+            prompt = [
+                "Choose the available movement behavior for this step.",
+                f"OBSERVATION:\n{observation}",
+                (
+                    "ELIGIBLE ACTIVE CITIZENS:\n"
+                    f"{eligible_context}\n"
+                    "No currently visible active citizen is eligible. Move to a "
+                    "nearby cell."
+                ),
+            ]
+            return prompt, ["move_one_step"], _COP_MOVEMENT_SYSTEM_PROMPT
+
+        prompt = [
+            self.step_prompt,
+            f"OBSERVATION:\n{observation}",
+            (
+                "ARREST TARGETS:\n"
+                f"{eligible_context}\n"
+                "Only use arrest_citizen with one of these citizen IDs."
+            ),
+        ]
+        return (
+            prompt,
+            ["move_one_step", "arrest_citizen"],
+            _COP_ARREST_SYSTEM_PROMPT,
         )
 
     def step(self):
@@ -210,11 +273,12 @@ class Cop(LLMAgent, mesa.discrete_space.CellAgent):
         applicable.
         """
         observation = self.generate_obs()
-        plan = self.reasoning.plan(
-            obs=observation,
-            selected_tools=["move_one_step", "arrest_citizen"],
+        prompt, actions, system_prompt = self._action_selection_context(observation)
+        self.act(
+            prompt=prompt,
+            actions=actions,
+            system_prompt=system_prompt,
         )
-        self.apply_plan(plan)
 
     async def astep(self):
         """
@@ -222,8 +286,9 @@ class Cop(LLMAgent, mesa.discrete_space.CellAgent):
         applicable.
         """
         observation = self.generate_obs()
-        plan = await self.reasoning.aplan(
-            obs=observation,
-            selected_tools=["move_one_step", "arrest_citizen"],
+        prompt, actions, system_prompt = self._action_selection_context(observation)
+        await self.aact(
+            prompt=prompt,
+            actions=actions,
+            system_prompt=system_prompt,
         )
-        self.apply_plan(plan)

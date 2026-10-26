@@ -6,7 +6,7 @@ This model is based on Epstein & Axtell's classic "Sugarscape" simulation from G
 
 The model generates emergent economic dynamics through decentralized interactions. Traders must constantly harvest resources to satisfy their metabolic needs; if they run out of either sugar or spice, they starve. Crucially, agents can trade with neighbors. Decisions are governed by the Marginal Rate of Substitution (MRS); agents rich in sugar but poor in spice will trade sugar to acquire spice, and vice versa. Over time, this decentralized trading allows for the emergence of a price equilibrium and wealth distribution patterns.
 
-This model is implemented using Mesa-LLM, unlike the original deterministic versions. All Trader agents use Large Language Models to "think" about their survival. They observe their internal inventory and MRS, then autonomously decide to use tools to move to high-value resource tiles or propose trades to neighbors to ensure their continued existence.
+This model is implemented using Mesa-LLM, unlike the original deterministic versions. All Trader agents use Large Language Models to "think" about their survival. They observe their internal inventory and MRS, then autonomously choose actions to move to high-value resource tiles or propose trades to neighbors to ensure their continued existence.
 
 ## Technical Details
 
@@ -22,7 +22,7 @@ This model is implemented using Mesa-LLM, unlike the original deterministic vers
 
 - `Resource (CellAgent):` A passive environmental agent that acts as a container for resources. It regenerates its current_amount by 1 unit per step up to a max_capacity.
 
-### Tools
+### Actions
 
 - `move_to_best_resource:`
 
@@ -39,7 +39,7 @@ This model is implemented using Mesa-LLM, unlike the original deterministic vers
 
 ### Movement Rule (Rule M)
 
-A Trader agent moves to a new location and harvests resources if the following logic, executed by the *move_to_best_resource tool*, is satisfied:
+A Trader agent moves to a new location and harvests resources if the following logic, executed by the *move_to_best_resource action*, is satisfied:
 
 Scan: The agent inspects all cells within its *vision range* (von Neumann neighborhood).
 
@@ -49,7 +49,7 @@ Harvest: The agent moves to that cell, sets the resource's amount to 0, and adds
 
 ### Trade Rule (Rule T)
 
-Agents determine whether to trade based on their Marginal Rate of Substitution (MRS). A trade is proposed via the propose_trade tool and accepted if it is mutually beneficial:
+Agents determine whether to trade based on their Marginal Rate of Substitution (MRS). A trade is proposed via the propose_trade action and accepted if it is mutually beneficial:
 
 ```
 Trade occurs if: Partner_MRS > Agent_MRS
@@ -81,28 +81,26 @@ Resource Agents represent the landscape. They are passive agents that regenerate
 
 Both Traders and the simulation logic are driven by LLM-powered agents, meaning:
 
--    Their actions (e.g., `move_to_best_resource`, `propose_trade`) are determined by a ReAct reasoning module.
+-    Their actions (e.g., `move_to_best_resource`, `propose_trade`) are selected by an action workflow.
 
--    This module takes as input:
+-    This workflow takes as input:
 
         The agent’s internal state (current inventory, metabolic warnings, and calculated MRS).
 
         Local observations of the grid.
 
--        A set of available tools defined in `tools.py`.
+-        A set of available actions registered by the example.
 
 
 
 ## How to Run
 
-If you have cloned the repo into your local machine, ensure you run the following command from the root of the library: ``pip install -e . ``. Then, you will need an api key of an LLM-provider of your choice. (This model in particular makes a large amount of calls per minute and we therefore recommend getting a paid version of an api-key that can offer high rate-limits). Once you have obtained the api-key follow the below steps to set it up for this model.
-1) Ensure the dotenv package is installed. If not, run ``pip install python-dotenv``.
-2) In the root folder of the project, create a file named .env.
-3) If you are using openAI's api key, add the following command in the .env file: ``OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx``. If you have the paid version of Gemini, use this line instead: ``GEMINI_API_KEY=your-gemini-api-key-here``(the free ones tend to not work with this model).
-4) Change the  ``api_key`` specification in app.py according to the provider you have chosen.
-5) Similarly change the ``llm_model`` attribute as well in app.py to the name of a model you have access to. Ensure it is in the form of {provider}/{model_name}. For e.g. ``openai/gpt-4o-mini``.
+If you have cloned the repo into your local machine, run ``pip install -e .`` from the project root. Then obtain an API key for an LLM provider of your choice and follow the steps below to configure this model. This model makes a large number of calls per minute, so a paid API key with higher rate limits is recommended.
+1) Create a `.env` file in the project root.
+2) In `.env`, set the API key variable that matches the provider prefix in `llm_model`. For example: ``OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx`` for `openai/...`, or ``GEMINI_API_KEY=your-gemini-api-key-here`` for `gemini/...`. The app uses `load_dotenv()` to load this automatically. If you use `ollama/...`, no API key is required, but you may need to configure `api_base` instead.
+3) Update the ``llm_model`` attribute in `app.py` to a model you have access to. Use the format ``{provider}/{model_name}``, for example ``openai/gpt-4o-mini``.
 
-Once you have set up the api-key in your system, run the following command from this directory:
+Once you have configured `.env` and `llm_model`, run the following command from this directory:
 
 ```
     $ solara run app.py
@@ -114,7 +112,7 @@ Once you have set up the api-key in your system, run the following command from 
 * ``model.py``: Core model code.
 * ``agents.py``: Agent classes.
 * ``app.py``: Sets up the interactive visualization.
-* ``tools.py``: Tools for the llm-agents to use.
+* ``actions.py``: Custom actions for the llm-agents to use.
 
 
 ## Further Reading

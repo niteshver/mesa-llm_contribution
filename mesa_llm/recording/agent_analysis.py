@@ -9,6 +9,7 @@ simulation recorder formats.
 
 import json
 import pickle
+import warnings
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -36,11 +37,18 @@ class AgentViewer:
     def _load_recording(self):
         """Load simulation recording from file."""
         if self.recording_path.suffix == ".pkl":
+            warnings.warn(
+                "Pickle recording support is deprecated and will be removed "
+                "in a future release. Loading .pkl files can execute "
+                "arbitrary code. Use JSON recordings instead.",
+                FutureWarning,
+                stacklevel=3,
+            )
             with open(self.recording_path, "rb") as f:
                 return pickle.load(f)  # noqa: S301
-        else:
-            with open(self.recording_path) as f:
-                return json.load(f)
+
+        with open(self.recording_path) as f:
+            return json.load(f)
 
     def _organize_events_by_agent(self):
         """Organize events by agent ID."""
@@ -54,6 +62,30 @@ class AgentViewer:
             agent_events[agent_id].sort(key=lambda x: x["timestamp"])
 
         return dict(agent_events)
+
+    @staticmethod
+    def _format_action_event(content):
+        """Format current and legacy action event content."""
+        if not isinstance(content, dict):
+            return f"ACTION: {content}"
+
+        if "action" not in content:
+            action = content.get("action_type", content.get("data", ""))
+            return f"ACTION: {action}"
+
+        action = content["action"]
+        if isinstance(action, dict):
+            name = action.get("name")
+            lines = [f"ACTION: {name}" if name else "ACTION: Unknown action"]
+            if "arguments" in action:
+                lines.append(f"Arguments: {action['arguments']}")
+        else:
+            lines = [f"ACTION: {action}" if action else "ACTION: Unknown action"]
+
+        if "result" in content:
+            lines.append(f"Result: {content['result']}")
+
+        return "\n".join(lines)
 
     def _format_event(self, event):
         """Format event content for rich display."""
@@ -109,11 +141,7 @@ class AgentViewer:
                 return "\n".join(lines)
 
             elif event_type == "action":
-                if isinstance(content, dict):
-                    action = content.get("action_type", content.get("data", ""))
-                else:
-                    action = str(content)
-                return f"ACTION: {action}"
+                return self._format_action_event(content)
 
             elif event_type == "state_change":
                 lines = ["STATE CHANGE"]

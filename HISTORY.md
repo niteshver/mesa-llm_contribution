@@ -2,6 +2,82 @@
 
 All notable changes to this project will be documented in this file. This project follows [Semantic Versioning](https://semver.org/).
 
+# 0.3.2 (2026-04-26)
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+## What's Changed
+### ⏳ Deprecations
+* add deprecation warnings for pickle-based recordings by @apfine in https://github.com/mesa/mesa-llm/pull/181
+### 🛠 Enhancements made
+* docs: add Ollama prerequisites to tutorials (#182) by @kalisingh2277 in https://github.com/mesa/mesa-llm/pull/213
+### 🐛 Bugs fixed
+* fix(llm_agent): prevent TypeError when agent.pos is None in _build_observation() by @abikooo in https://github.com/mesa/mesa-llm/pull/245
+* fix: ReWOOReasoning.aplan() calls sync add_to_memory instead of async aadd_to_memory by @BhoomiAgrawal12 in https://github.com/mesa/mesa-llm/pull/185
+* fix: prevent JSON serialization errors in send_message/asend_message … by @adarshkumar23 in https://github.com/mesa/mesa-llm/pull/231
+* Fix: Correctly raised value error with descriptive error message in case of Invalid model instead of not a function calling model  by @DineshThumma9 in https://github.com/mesa/mesa-llm/pull/285
+* fix: prevent double pre_step/post_step when astep() delegates to wrapped step() by @yashhzd in https://github.com/mesa/mesa-llm/pull/224
+* fix(reasoning): preserve agent system prompt during planning and execution by @raghav-567 in https://github.com/mesa/mesa-llm/pull/283
+* fix(llm_agent): initialize self.recorder so @record_model can attach it by @yashhzd in https://github.com/mesa/mesa-llm/pull/232
+* Fix: coerce numeric arguments in ToolManager by @BhoomiAgrawal12 in https://github.com/mesa/mesa-llm/pull/277
+* Fix: SimulationRecorder.save() appends duplicate simulation_end events on repeated calls by @BhoomiAgrawal12 in https://github.com/mesa/mesa-llm/pull/208
+* fix: raise TypeError for invalid prompt types in _build_messages() by @ospreyboi in https://github.com/mesa/mesa-llm/pull/305
+### 📜 Documentation improvements
+* doc: update inline formatting in first model tutorial by @niteshver in https://github.com/mesa/mesa-llm/pull/303
+### 🔧 Maintenance
+* warn when LLMAgent.astep() falls back to blocking step() by @adarshkumar23 in https://github.com/mesa/mesa-llm/pull/233
+* Add Pydantic Field descriptions to improve LLM JSON schema parsing by @gamal1osama in https://github.com/mesa/mesa-llm/pull/296
+
+## New Contributors
+* @abikooo made their first contribution in https://github.com/mesa/mesa-llm/pull/245
+* @adarshkumar23 made their first contribution in https://github.com/mesa/mesa-llm/pull/231
+* @raghav-567 made their first contribution in https://github.com/mesa/mesa-llm/pull/283
+* @kalisingh2277 made their first contribution in https://github.com/mesa/mesa-llm/pull/213
+* @apfine made their first contribution in https://github.com/mesa/mesa-llm/pull/181
+
+**Full Changelog**: https://github.com/mesa/mesa-llm/compare/v0.3.1...v0.3.2
+
+# 0.3.1 (2026-04-12)
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+## What's Changed
+### 🛠 Enhancements made
+* feat: propagate api_base property for local LLM support by @ahmednabiled in https://github.com/mesa/mesa-llm/pull/239
+### 🐛 Bugs fixed
+* fix: apply_plan() flattens multiple tool call results by @khushiiagrawal in https://github.com/mesa/mesa-llm/pull/155
+* fix: prevent ReWOO replay from mutating cached tool_calls by @Harsh-617 in https://github.com/mesa/mesa-llm/pull/160
+* docs: fix incorrect api_key instruction in negotiation readme by @Justaanand50 in https://github.com/mesa/mesa-llm/pull/249
+* fix: guard against non-LLM recipients in speak_to tool(#158) by @BhoomiAgrawal12 in https://github.com/mesa/mesa-llm/pull/161
+* fix: consolidate evicted entries into long-term memory by @yashhzd in https://github.com/mesa/mesa-llm/pull/166
+* fix: render readable text in get_communication_history for all memory… by @Harsh-617 in https://github.com/mesa/mesa-llm/pull/194
+* fix: accumulate additive events in memory staging area by @yashhzd in https://github.com/mesa/mesa-llm/pull/165
+* fix: selected_tools=[] should return no tools, not all tools by @AdityaChauhanX07 in https://github.com/mesa/mesa-llm/pull/225
+* Fix: Raises  value error for invalid tool name instead of key error  by @DineshThumma9 in https://github.com/mesa/mesa-llm/pull/280
+* fix: change executor tool_choice from required to auto so reasoning respects no-action decisions by @saakshisinghal14 in https://github.com/mesa/mesa-llm/pull/286
+### 📜 Documentation improvements
+* docs: improve README structure and fix duplicated section by @Indrasish7 in https://github.com/mesa/mesa-llm/pull/235
+### 🔧 Maintenance
+* fix: replace deprecated seed= with rng= in tests by @R1patil in https://github.com/mesa/mesa-llm/pull/226
+* improve RateLimitError message with actionable guidance by @ospreyboi in https://github.com/mesa/mesa-llm/pull/258
+* remove unused is_speaking attribute from LLMAgent by @EloZiko in https://github.com/mesa/mesa-llm/pull/261
+* re-enable RUF012, B017, PGH004 linting rules and fix violations by @Komatlakarthik in https://github.com/mesa/mesa-llm/pull/247
+* pin mesa below 4 by @wang-boyu in https://github.com/mesa/mesa-llm/pull/272
+
+## New Contributors
+* @R1patil made their first contribution in https://github.com/mesa/mesa-llm/pull/226
+* @ospreyboi made their first contribution in https://github.com/mesa/mesa-llm/pull/258
+* @Indrasish7 made their first contribution in https://github.com/mesa/mesa-llm/pull/235
+* @Justaanand50 made their first contribution in https://github.com/mesa/mesa-llm/pull/249
+* @ahmednabiled made their first contribution in https://github.com/mesa/mesa-llm/pull/239
+* @EloZiko made their first contribution in https://github.com/mesa/mesa-llm/pull/261
+* @Komatlakarthik made their first contribution in https://github.com/mesa/mesa-llm/pull/247
+* @AdityaChauhanX07 made their first contribution in https://github.com/mesa/mesa-llm/pull/225
+* @DineshThumma9 made their first contribution in https://github.com/mesa/mesa-llm/pull/280
+* @saakshisinghal14 made their first contribution in https://github.com/mesa/mesa-llm/pull/286
+
+**Full Changelog**: https://github.com/mesa/mesa-llm/compare/v0.3.0...v0.3.1
+
 # 0.3.0 (2026-03-13)
 
 ## What's Changed

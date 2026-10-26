@@ -3,15 +3,14 @@ from typing import TYPE_CHECKING
 from examples.sugarscrap_g1mt.agents import (
     Resource,
     Trader,
-    trader_tool_manager,
 )
-from mesa_llm.tools.tool_decorator import tool
+from mesa_llm.actions import action
 
 if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent
 
 
-@tool(tool_manager=trader_tool_manager)
+@action
 def move_to_best_resource(agent: "LLMAgent") -> str:
     """
     Move the agent to the best resource cell within its vision range.
@@ -93,7 +92,7 @@ def move_to_best_resource(agent: "LLMAgent") -> str:
     )
 
 
-@tool(tool_manager=trader_tool_manager)
+@action
 def propose_trade(
     agent: "LLMAgent", other_agent_id: int, sugar_amount: int, spice_amount: int
 ) -> str:

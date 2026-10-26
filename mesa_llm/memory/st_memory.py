@@ -1,7 +1,7 @@
 from collections import deque
 from typing import TYPE_CHECKING
 
-from mesa_llm.memory.memory import Memory, MemoryEntry
+from mesa_llm.memory.memory import Memory, MemoryEntry, _format_message_entry
 
 if TYPE_CHECKING:
     from mesa_llm.llm_agent import LLMAgent
@@ -16,6 +16,8 @@ class ShortTermMemory(Memory):
         n : positive number of short-term memories to remember
         display : whether to display the memory
         llm_model : the model to use for the summarization
+        additive_event_types : event types accumulated as lists within a step.
+            Defaults to ``{"message", "action"}``.
     """
 
     def __init__(
@@ -23,13 +25,26 @@ class ShortTermMemory(Memory):
         agent: "LLMAgent",
         n: int = 5,
         display: bool = True,
+        additive_event_types: list[str] | set[str] | tuple[str, ...] | None = None,
     ):
+        """
+        Initialize short-term memory.
+
+        Args:
+            agent : the agent that owns this memory
+            n : maximum number of finalized short-term entries to keep
+            display : whether memory entries should be displayed
+            additive_event_types : event types that accumulate multiple values
+                within a step instead of overwriting. Defaults to
+                ``{"message", "action"}``.
+        """
         if n < 1:
             raise ValueError("n must be >= 1 for ShortTermMemory")
 
         super().__init__(
             agent=agent,
             display=display,
+            additive_event_types=additive_event_types,
         )
         self.n = n
         self.short_term_memory = deque(maxlen=self.n)
@@ -56,21 +71,37 @@ class ShortTermMemory(Memory):
                 content=self.step_content,
                 step=None,
             )
+            self._current_step_entry._event_order = list(self._step_event_order)
             self.step_content = {}
+            self._reset_step_event_order()
             return
 
         new_entry = None
         if self._current_step_entry is not None:
-            merged_content = dict(self.step_content)
-            merged_content.update(self._current_step_entry.content)
+            merged_content = self._merge_step_contents(
+                self.step_content, self._current_step_entry.content
+            )
             new_entry = MemoryEntry(
                 agent=self.agent,
                 content=merged_content,
                 step=self.agent.model.steps,
             )
+            staged_event_order = self._normalized_step_event_order(
+                self._current_step_entry.content,
+                getattr(self._current_step_entry, "_event_order", ()),
+            )
+            current_event_order = self._normalized_step_event_order(
+                self.step_content,
+                self._step_event_order,
+            )
+            new_entry._event_order = [
+                *staged_event_order,
+                *current_event_order,
+            ]
             self.short_term_memory.append(new_entry)
             self._current_step_entry = None
             self.step_content = {}
+            self._reset_step_event_order()
 
         # Display the new entry
         if self.display and new_entry is not None:
@@ -98,10 +129,14 @@ class ShortTermMemory(Memory):
         """
         Get the communication history
         """
-        return "\n".join(
-            [
-                f"step {entry.step}: {entry.content['message']}\n\n"
-                for entry in self.short_term_memory
-                if "message" in entry.content
-            ]
-        )
+        lines = []
+        for entry in self.short_term_memory:
+            if "message" not in entry.content:
+                continue
+            msgs = entry.content["message"]
+            if isinstance(msgs, list):
+                for msg in msgs:
+                    lines.append(f"Step {entry.step}: {_format_message_entry(msg)}\n\n")
+            else:
+                lines.append(f"Step {entry.step}: {_format_message_entry(msgs)}\n\n")
+        return "\n".join(lines)

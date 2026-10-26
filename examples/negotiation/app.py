@@ -12,7 +12,6 @@ from mesa.visualization import (
 
 from examples.negotiation.agents import BuyerAgent, SellerAgent
 from examples.negotiation.model import NegotiationModel
-from mesa_llm.parallel_stepping import enable_automatic_parallel_stepping
 from mesa_llm.reasoning.react import ReActReasoning
 
 # Suppress Pydantic serialization warnings
@@ -25,7 +24,6 @@ warnings.filterwarnings(
 
 # Also suppress through logging
 logging.getLogger("pydantic").setLevel(logging.ERROR)
-enable_automatic_parallel_stepping(mode="threading")
 
 load_dotenv()
 
@@ -42,6 +40,7 @@ model_params = {
     "reasoning": ReActReasoning,
     "llm_model": "openai/gpt-4o",
     "vision": 5,
+    "api_base": None,
 }
 
 
@@ -52,6 +51,7 @@ model = NegotiationModel(
     reasoning=model_params["reasoning"],
     llm_model=model_params["llm_model"],
     vision=model_params["vision"],
+    api_base=model_params["api_base"],
     seed=model_params["seed"]["value"],
 )
 

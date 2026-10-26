@@ -14,9 +14,9 @@ This model is a simple negotiation model where two types of agents (buyer and se
 
 ## Agent Decision Logic
 
-Both buyers and sellers are implemented as LLM-powered agents. Their actions (such as moving, speaking, or buying) are determined by a reasoning module that receives the agent’s internal state, local observations, and a set of available tools.
-Sellers do not move; they use the `speak_to` tool to pitch products to buyers in their cell or neighboring cells, attempting to persuade buyers until a sale is made or the buyer refuses.
-Buyers can move using the `teleport_to_location` tool if not engaged with a seller, gather information from sellers using `speak_to`, and make purchases using the `buy_product` tool. Their decision is influenced by their budget and the information received from sellers.
+Both buyers and sellers are implemented as LLM-powered agents. Their actions (such as moving, speaking, or buying) are selected by an action workflow that receives the agent’s internal state, local observations, and a set of available actions.
+Sellers do not move; they use the `speak_to` action to pitch products to buyers in their cell or neighboring cells, attempting to persuade buyers until a sale is made or the buyer refuses.
+Buyers can move using the `teleport_to_location` action if not engaged with a seller, gather information from sellers using `speak_to`, and make purchases using the `buy_product` action. Their decision is influenced by their budget and the information received from sellers.
 
 ## Agent Attributes
 
@@ -25,8 +25,8 @@ Buyers can move using the `teleport_to_location` tool if not engaged with a sell
 
 ## Negotiation Protocol
 
-The negotiation is conducted through tool-based interactions, where sellers initiate conversations and buyers respond, gather information, and decide on purchases.
-The reasoning module plans actions based on prompts and observations, simulating realistic negotiation dynamics.
+The negotiation is conducted through action-based interactions, where sellers initiate conversations and buyers respond, gather information, and decide on purchases.
+The action workflow selects state-changing behavior based on prompts and observations, simulating realistic negotiation dynamics.
 
 ## Data Collection
 
@@ -34,14 +34,12 @@ The model tracks the number of sales for each seller using a data collector, all
 
 ## How to Run
 
-If you have cloned the repo into your local machine, ensure you run the following command from the root of the library: ``pip install -e . ``. Then, you will need an api key of an LLM-provider of your choice. Once you have obtained the api-key follow the below steps to set it up for this model.
-1) Ensure the dotenv package is installed. If not, run ``pip install python-dotenv``.
-2) In the root folder of the project, create a file named .env.
-3) If you are using openAI's api key, add the following command in the .env file: ``OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx``. If you have a Gemini based api-key, use this line instead: ``GEMINI_API_KEY=your-gemini-api-key-here``.
-4) Change the  ``api_key`` specification in app.py according to the provider you have chosen.
-5) Similarly change the ``llm_model`` attribute as well in app.py to the name of a model you have access to. Ensure it is in the form of {provider}/{model_name}. For e.g. ``openai/gpt-4o-mini``.
+If you have cloned the repo into your local machine, run ``pip install -e .`` from the project root. Then obtain an API key for an LLM provider of your choice and follow the steps below to configure this model.
+1) Create a `.env` file in the project root.
+2) In `.env`, set the API key variable that matches the provider prefix in `llm_model`. For example: ``OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx`` for `openai/...`, ``GEMINI_API_KEY=your-gemini-api-key-here`` for `gemini/...`, or ``ANTHROPIC_API_KEY=your-anthropic-api-key-here`` for `anthropic/...`. The app uses `load_dotenv()` to load this automatically. If you use `ollama/...`, no API key is required, but you may need to configure `api_base` instead.
+3) Update the ``llm_model`` attribute in `app.py` to a model you have access to. Use the format ``{provider}/{model_name}``, for example ``openai/gpt-4o-mini``.
 
-Once you have set up the api-key in your system, run the following command from this directory:
+Once you have configured `.env` and `llm_model`, run the following command from this directory:
 
 ```
     $ solara run app.py
@@ -52,4 +50,4 @@ Once you have set up the api-key in your system, run the following command from 
 * ``model.py``: Core model code.
 * ``agent.py``: Agent classes.
 * ``app.py``: Sets up the interactive visualization.
-* ``tools.py``: Tools for the llm-agents to use.
+* ``actions.py``: Custom actions for the llm-agents to use.

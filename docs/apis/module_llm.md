@@ -26,24 +26,66 @@ llm = ModuleLLM(
 response = llm.generate("What should I do next in this situation?")
 ```
 
-## Tool Integration
+## Custom API Endpoints
+
+If you are using a self-hosted or remote LLM server (e.g., Ollama on another machine, vLLM, LM Studio), you can specify a custom API endpoint using the `api_base` parameter:
 
 ```python
-from mesa_llm.tools.tool_manager import ToolManager
+from mesa_llm.module_llm import ModuleLLM
 
-tool_manager = ToolManager()
-llm = ModuleLLM(api_key="key", llm_model="openai/gpt-4o")
-
-# Generate with tool calling
-response = llm.generate(
-   prompt="Move to a better location",
-   tool_schema=tool_manager.get_all_tools_schema(),
-   tool_choice="auto"
+# Connect to a remote Ollama instance
+llm = ModuleLLM(
+   llm_model="ollama_chat/llama3.2",
+   system_prompt="You are a helpful agent.",
+   api_base="http://192.168.1.100:11434",
 )
 
-# Handle tool calls
-if response.choices[0].message.tool_calls:
-   tool_manager.call_tools(agent=agent, llm_response=response.choices[0].message)
+# Connect to a local LM Studio server
+llm = ModuleLLM(
+   llm_model="openai/my-local-model",
+   system_prompt="You are a helpful agent.",
+   api_base="http://localhost:1234/v1",
+)
+```
+
+> **Note:** For standard Ollama running locally on the default port, `api_base` is optional — it defaults to `http://localhost:11434`. For cloud providers (OpenAI, Anthropic, Google, Groq, etc.), `api_base` is not needed as the URLs are automatically resolved by the LiteLLM library.
+
+The `api_base` parameter is supported across all layers of Mesa-LLM: `ModuleLLM`, `LLMAgent`, and all `Memory` subclasses (`STLTMemory`, `EpisodicMemory`, `LongTermMemory`).
+
+## Tool Integration
+
+For agent workflows, configure tools on `LLMAgent` instead of constructing a
+tool manager directly. `ModuleLLM` remains the lower-level generation wrapper;
+agent reasoning handles tool schemas and execution through the agent's configured
+tools.
+
+```python
+from mesa.model import Model
+
+from mesa_llm.llm_agent import LLMAgent
+from mesa_llm.reasoning.cot import CoTReasoning
+from mesa_llm.tools import tool
+
+@tool
+def inspect_status(agent) -> str:
+   """Inspect status.
+   Args:
+      agent: The agent making the request (provided automatically)
+   Returns:
+      A compact status string.
+   """
+   return str(agent)
+
+model = Model()
+agent = LLMAgent(
+   model=model,
+   reasoning=CoTReasoning,
+   llm_model="openai/gpt-4o",
+   tools=[inspect_status],
+)
+
+plan = agent.reasoning.plan(prompt="Inspect the current status")
+agent.apply_plan(plan)
 ```
 
 ## Asynchronous Usage
@@ -87,10 +129,9 @@ decision = AgentDecision.parse_raw(response.choices[0].message.content)
 
 ```python
 class MyAgent(LLMAgent):
-   def __init__(self, model, api_key, **kwargs):
+   def __init__(self, model, **kwargs):
       super().__init__(
             model=model,
-            api_key=api_key,
             llm_model="anthropic/claude-3-sonnet",  # Automatically creates ModuleLLM
             system_prompt="Custom agent behavior instructions",
             **kwargs

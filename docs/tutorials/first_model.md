@@ -28,7 +28,7 @@ human-like agent behavior.
 While Mesa-LLM adds:
 - Prompt-driven reasoning
 - Reasoning strategies (e.g. ReAct)
-- Optional memory components for contextual reasoning across steps
+- Optional memory components for contextual reasoning across steps (e.g. `STLTMemory`)
 - Integration with LLM backends such as OpenAI, Ollama, and others.
 
 ## Model Description
@@ -46,7 +46,33 @@ This tutorial **focuses on reasoning output only**.
 Action execution and environments are intentionally deferred to later tutorials.
 
 ## Tutorial Setup
+
 Create and activate a virtual environment. Python version 3.12 or higher is required.
+
+This tutorial uses **Ollama** as the default LLM provider. To follow along, you must have Ollama installed, and the local server must be running at `http://localhost:11434`.
+
+1. **Install Ollama**: Follow the instructions at [ollama.com](https://ollama.com).
+2. **Pull the Model**: Open a terminal and run:
+   ```bash
+   ollama pull llama3
+   ```
+3. **Run Ollama**: Start Ollama and confirm the local server is available at `http://localhost:11434` before running the tutorial. If you are running Ollama manually from a terminal, you can use:
+   ```bash
+   ollama serve
+   ```
+
+   To verify that Ollama is responding and the model is available, you can use:
+   ```bash
+   ollama ls
+   ```
+
+   For platform-specific startup instructions and additional CLI commands, see the [Ollama docs](https://docs.ollama.com/) and [CLI reference](https://docs.ollama.com/cli).
+
+```{note}
+If you prefer to use a cloud-hosted provider like **OpenAI** or **Gemini**, you will need to provide an API key and update the `llm_model` parameter in the code accordingly (see [Basic LLM Setup](../apis/module_llm.md#basic-llm-setup)).
+
+This tutorial assumes the default Ollama endpoint at `http://localhost:11434`. For custom Ollama endpoints, see [Custom API Endpoints](../apis/module_llm.md#custom-api-endpoints).
+```
 
 ## Install Mesa-LLM and required packages
 
@@ -72,7 +98,7 @@ pip install -U -e git+https://github.com/YOUR_FORK/mesa-llm@YOUR_BRANCH#egg=mesa
 ```
 
 ## Building the Model
-After Mesa-LLM is installed, a 'model' can be built.
+After Mesa-LLM is installed, a model can be built.
 This tutorial can be followed in a regular Python script or in a [Jupyter](https://jupyter.org/) notebook.
 
 
@@ -93,10 +119,10 @@ from mesa_llm.memory.st_lt_memory import STLTMemory
 ```
 
 ## Creating the Agent
-We begin by defining a minimal agent that inherits from 'LLMAgent'.
+We begin by defining a minimal agent that inherits from `LLMAgent`.
 
-Unlike traditional Mesa agents, 'LLMAgent' delegates its reasoning to a language model through a configurable reasoning strategy.
-In this tutorial, we use ReActReasoning, which produces both a reasoning trace and a suggested action.
+Unlike traditional Mesa agents, `LLMAgent` delegates its reasoning to a language model through a configurable reasoning strategy.
+In this tutorial, we use `ReActReasoning`, which produces both a reasoning trace and a suggested action.
 
 Using the previously imported dependencies, we define the agent class:
 ```python
@@ -125,16 +151,16 @@ class SimpleAgent(LLMAgent):
         plan = self.reasoning.plan(
             prompt=prompt,
             obs=observation,
-            selected_tools=[]
+            tools=[]
         )
 
         print(plan)
 ```
 
 ## Create the Model
-The 'model' manages agent creation and advances the simulation.
+The model manages agent creation and advances the simulation.
 
-'Agent' are created using the `create_agents()` helper provided by Mesa.
+Agents are created using the `create_agents()` helper provided by Mesa.
 Mesa-LLM integrates with this mechanism by allowing `LLMAgent` to be used
 wherever a standard Mesa `Agent` is expected.
 
@@ -181,9 +207,9 @@ if __name__ == "__main__":
     for _ in range(3):
         model.step()
 ```
-Each call to 'model.step()' activates all agents once and prints their language-based reasoning.
+Each call to `model.step()` activates all agents once and prints their language-based reasoning.
 
-- An example output from running the 'model' is shown below
+- An example output from running the `model` is shown below
 
 ```bash
 ╭─ Step 1 | SimpleAgent 1 ──────────────────────────────────────────────────────────────────────────────╮
@@ -194,12 +220,12 @@ Each call to 'model.step()' activates all agents once and prints their language-
 │ is the first step, so I should explore the environment to get a better understanding of it. I will    │
 │ decide to move one step in a random direction.                                                        │
 │    └── action : move_one_step                                                                         │
-╰────────────────────────────────────────────────
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
 ## About Actions in the Output
-This is expected behavior when using ReActReasoning, which always produces both reasoning and an action suggestion as part of its design.
+This is expected behavior when using `ReActReasoning`, which always produces both reasoning and an action suggestion as part of its design.
 
 ### Important Note:
 - In this introductory tutorial, action suggestions are not executed.
@@ -227,9 +253,3 @@ Try the following small exercises to better understand how agent reasoning works
 
 In this tutorial, actions are not executed and are shown only as part of the reasoning
 trace. Later tutorials will introduce environments and action execution.
-
-
-
-
-
-
