@@ -231,17 +231,26 @@ class ModuleLLM:
         tool_choice: str,
         response_format: dict | object | None,
         suppress_thinking: bool,
+        model: str,
     ) -> dict:
         completion_kwargs = {
-            "model": self.llm_model,
+            "model": model,
             "messages": messages,
             "tools": tool_schema,
             "tool_choice": tool_choice if tool_schema else None,
             "response_format": response_format,
         }
-        if suppress_thinking and self.llm_model.startswith(("ollama/", "ollama_chat/")):
+        if suppress_thinking and model.startswith(("ollama/", "ollama_chat/")):
             completion_kwargs.update({"think": False, "drop_params": True})
-        if self.api_base:
+        provider = model.split("/", 1)[0].lower()
+        primary_provider = self.llm_model.split("/", 1)[0].lower()
+        if provider in ("ollama", "ollama_chat"):
+            completion_kwargs["api_base"] = (
+                self.api_base
+                if primary_provider in ("ollama", "ollama_chat") and self.api_base
+                else "http://localhost:11434"
+            )
+        elif model == self.llm_model and self.api_base:
             completion_kwargs["api_base"] = self.api_base
         if _ONE_SHOT_COMPLETION.get():
             completion_kwargs.update(
@@ -280,23 +289,24 @@ class ModuleLLM:
         """
 
         messages = self._build_messages(prompt, system_prompt=system_prompt)
+        model_to_use = self.active_model
         completion_kwargs = self._build_completion_kwargs(
             messages,
             tool_schema,
             tool_choice,
             response_format,
             suppress_thinking,
+            model_to_use,
         )
 
-        model_to_use = self.active_model
-
         try:
-            response = completion(
-                model=model_to_use,
-                **completion_kwargs,
+            response = completion(**completion_kwargs)
+            response = self._validate_response(
+                response,
+                response_format,
+                tool_schema,
             )
-            actual_model = response.get("model", "unknown")
-            logger.info("LLM request handled by model: %s", actual_model)
+            logger.info("LLM request handled by model: %s", model_to_use)
             return response
         except Exception as error:
             if (
@@ -306,18 +316,40 @@ class ModuleLLM:
             ):
                 self._switch_to_fallback()
                 try:
-                    response = completion(
-                        model=self.fallback_model,
-                        **completion_kwargs,
+                    fallback_kwargs = self._build_completion_kwargs(
+                        messages,
+                        tool_schema,
+                        tool_choice,
+                        response_format,
+                        suppress_thinking,
+                        self.fallback_model,
                     )
-                    actual_model = response.get("model", "unknown")
+                    response = completion(**fallback_kwargs)
+                    response = self._validate_response(
+                        response,
+                        response_format,
+                        tool_schema,
+                    )
                     logger.info(
                         "LLM request handled by fallback model: %s",
-                        actual_model,
+                        self.fallback_model,
                     )
                     return response
                 except Exception:
+                    if "response" in locals():
+                        logger.warning(
+                            "LLM response from fallback model %s: %r",
+                            self.fallback_model,
+                            response,
+                        )
                     raise
+
+            if "response" in locals():
+                logger.warning(
+                    "LLM response from model %s: %r",
+                    model_to_use,
+                    response,
+                )
 
             if isinstance(error, RateLimitError):
                 raise self._build_rate_limit_error(error) from error
@@ -344,23 +376,24 @@ class ModuleLLM:
             reraise=True,
         ):
             with attempt:
+                model_to_use = self.active_model
                 completion_kwargs = self._build_completion_kwargs(
                     messages,
                     tool_schema,
                     tool_choice,
                     response_format,
                     suppress_thinking,
+                    model_to_use,
                 )
 
-                model_to_use = self.active_model
-
                 try:
-                    response = await acompletion(
-                        model=model_to_use,
-                        **completion_kwargs,
+                    response = await acompletion(**completion_kwargs)
+                    response = self._validate_response(
+                        response,
+                        response_format,
+                        tool_schema,
                     )
-                    actual_model = response.get("model", "unknown")
-                    logger.info("LLM request handled by model: %s", actual_model)
+                    logger.info("LLM request handled by model: %s", model_to_use)
                     return response
                 except Exception as error:
                     if (
@@ -370,18 +403,40 @@ class ModuleLLM:
                     ):
                         self._switch_to_fallback()
                         try:
-                            response = await acompletion(
-                                model=self.fallback_model,
-                                **completion_kwargs,
+                            fallback_kwargs = self._build_completion_kwargs(
+                                messages,
+                                tool_schema,
+                                tool_choice,
+                                response_format,
+                                suppress_thinking,
+                                self.fallback_model,
                             )
-                            actual_model = response.get("model", "unknown")
+                            response = await acompletion(**fallback_kwargs)
+                            response = self._validate_response(
+                                response,
+                                response_format,
+                                tool_schema,
+                            )
                             logger.info(
                                 "LLM request handled by fallback model: %s",
-                                actual_model,
+                                self.fallback_model,
                             )
                             return response
                         except Exception:
+                            if "response" in locals():
+                                logger.warning(
+                                    "LLM response from fallback model %s: %r",
+                                    self.fallback_model,
+                                    response,
+                                )
                             raise
+
+                    if "response" in locals():
+                        logger.warning(
+                            "LLM response from model %s: %r",
+                            model_to_use,
+                            response,
+                        )
 
                     # Treat unmapped-model message from litellm as an invalid model
                     if str(error).startswith("This model isn't mapped yet."):
@@ -392,4 +447,43 @@ class ModuleLLM:
                     if isinstance(error, NotFoundError):
                         raise self._build_invalid_model_error(error) from error
                     raise
+        return response
+
+    @staticmethod
+    def _validate_response(response, response_format, tool_schema):
+        if response_format is None or tool_schema:
+            return response
+
+        choices = (
+            response.get("choices")
+            if isinstance(response, dict)
+            else getattr(response, "choices", None)
+        )
+
+        if not choices:
+            raise ValueError("LLM returned no choices.")
+
+        message = (
+            choices[0].get("message")
+            if isinstance(choices[0], dict)
+            else getattr(choices[0], "message", None)
+        )
+
+        if message is None:
+            raise ValueError("LLM returned no message.")
+
+        content = (
+            message.get("content")
+            if isinstance(message, dict)
+            else getattr(message, "content", None)
+        )
+        parsed = (
+            message.get("parsed")
+            if isinstance(message, dict)
+            else getattr(message, "parsed", None)
+        )
+
+        if content is None and parsed is None:
+            raise ValueError("LLM returned an empty structured response.")
+
         return response

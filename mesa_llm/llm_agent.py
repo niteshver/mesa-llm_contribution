@@ -208,7 +208,10 @@ class LLMAgent(Agent):
             self.model = model
             self.step_prompt = step_prompt
             self.llm = ModuleLLM(
-                llm_model=llm_model, system_prompt=system_prompt, api_base=api_base
+                llm_model=llm_model,
+                fallback_model=fallback_model,
+                system_prompt=system_prompt,
+                api_base=api_base,
             )
 
             self.memory = STLTMemory(
@@ -216,6 +219,7 @@ class LLMAgent(Agent):
                 short_term_capacity=5,
                 consolidation_capacity=2,
                 llm_model=llm_model,
+                fallback_model=fallback_model,
                 api_base=api_base,
             )
 
