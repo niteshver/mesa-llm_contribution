@@ -1,4 +1,3 @@
-
 from litellm import completion
 
 MODEL = "ollama/llama3-groq-tool-use:8b"

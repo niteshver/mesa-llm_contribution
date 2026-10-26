@@ -50,7 +50,7 @@ class Citizen(LLMAgent, mesa.discrete_space.CellAgent):
         regime_legitimacy=0.5,
         threshold=0.5,
         api_base=None,
-        stream=None,
+        stream=True,
     ):
         # Call the superclass constructor with updated internal state
         super().__init__(

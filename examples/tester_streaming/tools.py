@@ -45,6 +45,8 @@ def arrest_citizen(agent: "LLMAgent", citizen_id: int) -> str:
     citizen = next(
         (agent for agent in agent.model.agents if agent.unique_id == citizen_id), None
     )
+    if citizen is None:
+        raise ValueError(f"Citizen {citizen_id} not found.")
     citizen.state = CitizenState.ARRESTED
-    citizen.jail_senttence_left = random.randint(1, agent.max_jail_term)
+    citizen.jail_sentence_left = random.randint(1, agent.max_jail_term)
     return f"agent {citizen_id} arrested by {agent.unique_id}."

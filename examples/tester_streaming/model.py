@@ -113,10 +113,22 @@ class EpsteinModel(Model):
 
 if __name__ == "__main__":
     """
-    run the model without the solara integration with:
-    conda activate mesa-llm && python -m examples.epstein_civil_violence.model
+    Run the tester streaming model directly without the Solara UI.
     """
-    from examples.epstein_civil_violence.app import model
+    from mesa_llm.reasoning.react import ReActReasoning
+
+    model = EpsteinModel(
+        initial_cops=5,
+        initial_citizens=20,
+        width=10,
+        height=10,
+        reasoning=ReActReasoning,
+        llm_model="ollama/llama3-groq-tool-use:8b",
+        vision=5,
+        api_base="http://localhost:11434",
+        parallel_stepping=True,
+        seed=42,
+    )
 
     for _ in range(5):
         model.step()

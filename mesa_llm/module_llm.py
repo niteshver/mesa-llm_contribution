@@ -36,6 +36,7 @@ class ModuleLLM:
         api_base: str | None = None,
         system_prompt: str | None = None,
         stream: bool | str | None = None,
+        on_token: Callable[[str], None] | None = None,
     ):
         """
         Initialize the LLM module
@@ -46,6 +47,7 @@ class ModuleLLM:
             api_base: The API base to use if the LLM provider is Ollama
             system_prompt: The system prompt to use for the LLM
             stream: Whether streaming responses should be enabled by default.
+            on_token: Optional callback invoked with each streamed token/chunk.
 
         Raises:
             ValueError: If llm_model is not in the expected "{provider}/{model}"
@@ -55,6 +57,7 @@ class ModuleLLM:
         self.llm_model = llm_model
         self.system_prompt = system_prompt
         self.stream = self._normalize_stream_flag(stream)
+        self.on_token = on_token
 
         if "/" not in llm_model:
             raise ValueError(
@@ -240,6 +243,14 @@ class ModuleLLM:
             num_retries=error.num_retries,
         )
 
+    def _build_stream_response_from_chunks(self, chunks: list, messages: list[dict]):
+        if not chunks:
+            return self._build_stream_response("")
+        try:
+            return litellm.stream_chunk_builder(chunks, messages=messages)
+        except Exception:
+            return self._build_stream_response("".join(self._extract_stream_content(c) for c in chunks if self._extract_stream_content(c)))
+
     @retry(
         wait=wait_exponential(multiplier=1, min=1, max=60),
         retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
@@ -253,15 +264,20 @@ class ModuleLLM:
         response_format: dict | object | None = None,
         system_prompt: str | None = None,
         stream: bool | str | None = None,
-        stream_callback: Callable[[str], None] | None = None,
+        on_token: Callable[[str], None] | None = None,
     ) -> str:
         """
         Generate a response from the LLM using litellm based on the prompt.
 
-        When ``stream`` is enabled, the incremental text is accumulated and a
-        response object matching the non-streaming API is returned.
+        stream=True keeps the same return type as the non-streaming path: text is
+        streamed to ``on_token`` as it arrives, then the final response is rebuilt
+        from LiteLLM chunks so reasoning and tool parsing continue to receive a
+        normal ModelResponse object.
         """
         stream = self._normalize_stream_flag(stream) if stream is not None else self.stream
+        if response_format is not None:
+            stream = False
+        callback = self.on_token if on_token is None else on_token
         messages = self._build_messages(prompt, system_prompt=system_prompt)
 
         completion_kwargs = {
@@ -278,14 +294,16 @@ class ModuleLLM:
         try:
             response = completion(**completion_kwargs)
             if stream:
-                collected = []
+                streamed_chunks = []
                 for chunk in response:
                     chunk_text = self._extract_stream_content(chunk)
                     if chunk_text:
-                        collected.append(chunk_text)
-                        if stream_callback is not None:
-                            stream_callback(chunk_text)
-                return self._build_stream_response("".join(collected))
+                        if callback is not None:
+                            callback(chunk_text)
+                        streamed_chunks.append(chunk)
+                return self._build_stream_response_from_chunks(streamed_chunks, messages)
+            actual_model = response.get("model", "unknown")
+            logger.info("LLM request handled by model: %s", actual_model)
             return response
         except RateLimitError as error:
             raise self._build_rate_limit_error(error) from error
@@ -304,13 +322,17 @@ class ModuleLLM:
         response_format: dict | object | None = None,
         system_prompt: str | None = None,
         stream: bool | str | None = None,
-        stream_callback: Callable[[str], None] | None = None,
+        on_token: Callable[[str], None] | None = None,
     ) -> str:
         """
         Asynchronous version of generate() method for parallel LLM calls.
         """
         stream = self._normalize_stream_flag(stream) if stream is not None else self.stream
+        if response_format is not None:
+            stream = False
+        callback = self.on_token if on_token is None else on_token
         messages = self._build_messages(prompt, system_prompt=system_prompt)
+
         async for attempt in AsyncRetrying(
             wait=wait_exponential(multiplier=1, min=1, max=60),
             retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
@@ -331,14 +353,18 @@ class ModuleLLM:
                 try:
                     response = await acompletion(**completion_kwargs)
                     if stream:
-                        collected = []
+                        streamed_chunks = []
                         async for chunk in response:
                             chunk_text = self._extract_stream_content(chunk)
                             if chunk_text:
-                                collected.append(chunk_text)
-                                if stream_callback is not None:
-                                    stream_callback(chunk_text)
-                        return self._build_stream_response("".join(collected))
+                                if callback is not None:
+                                    callback(chunk_text)
+                                streamed_chunks.append(chunk)
+                        return self._build_stream_response_from_chunks(
+                            streamed_chunks, messages
+                        )
+                    actual_model = response.get("model", "unknown")
+                    logger.info("LLM request handled by model: %s", actual_model)
                     return response
                 except RateLimitError as error:
                     raise self._build_rate_limit_error(error) from error
@@ -348,4 +374,3 @@ class ModuleLLM:
                     if str(error).startswith("This model isn't mapped yet."):
                         raise self._build_invalid_model_error(error) from error
                     raise
-        return response

@@ -121,7 +121,7 @@ class ReWOOReasoning(Reasoning):
         tool_calls: str | None = "auto",
         selected_tools: ToolSelection | object = _UNSET,
         stream: bool | str | None = None,
-        stream_callback: Callable[[str], None] | None = None,
+        on_token: Callable[[str], None] | None = None,
     ) -> Plan:
         """
         Plan the next (ReWOO) action based on the current observation and the
@@ -182,7 +182,7 @@ class ReWOOReasoning(Reasoning):
             tool_choice="none",
             system_prompt=system_prompt,
             stream=stream,
-            stream_callback=stream_callback,
+            on_token=on_token,
         )
 
         self.agent.memory.add_to_memory(
@@ -213,7 +213,7 @@ class ReWOOReasoning(Reasoning):
         tool_calls: str | None = "auto",
         selected_tools: ToolSelection | object = _UNSET,
         stream: bool | str | None = None,
-        stream_callback: Callable[[str], None] | None = None,
+        on_token: Callable[[str], None] | None = None,
     ) -> Plan:
         """
         Asynchronous version of plan() method for parallel planning.
@@ -270,7 +270,7 @@ class ReWOOReasoning(Reasoning):
             tool_choice="none",
             system_prompt=system_prompt,
             stream=stream,
-            stream_callback=stream_callback,
+            on_token=on_token,
         )
 
         await self.agent.memory.aadd_to_memory(

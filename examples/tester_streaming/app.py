@@ -49,7 +49,7 @@ model_params = {
     "height": 10,
     "reasoning": ReActReasoning,
     "llm_model": "ollama/llama3-groq-tool-use:8b",
-    "api_base": None,
+    "api_base": "http://localhost:11434",
     "vision": 5,
     "parallel_stepping": True,
 }
@@ -109,7 +109,7 @@ if __name__ == "__main__":
             chart_component,
         ],  # Add ShowSalesButton here
         model_params=model_params,
-        name="Espstein Civil Violence Model",
+        name="Esptein Civil Violence Model",
     )
 
 

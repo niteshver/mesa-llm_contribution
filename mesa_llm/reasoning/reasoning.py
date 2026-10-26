@@ -125,7 +125,7 @@ class Reasoning(ABC):
         tool_calls: str | None = "auto",
         selected_tools: ToolSelection | object = _UNSET,
         stream: bool | str | None = None,
-        stream_callback: Callable[[str], None] | None = None,
+        on_token: Callable[[str], None] | None = None,
     ) -> Plan:
         """Generate a plan for the next action.
 
@@ -166,7 +166,7 @@ class Reasoning(ABC):
         tool_calls: str | None = "auto",
         selected_tools: ToolSelection | object = _UNSET,
         stream: bool | str | None = None,
-        stream_callback: Callable[[str], None] | None = None,
+        on_token: Callable[[str], None] | None = None,
     ) -> Plan:
         """
         Asynchronous version of plan() method for parallel planning.
@@ -185,7 +185,7 @@ class Reasoning(ABC):
             tool_calls=tool_calls,
             selected_tools=selected_tools,
             stream=stream,
-            stream_callback=stream_callback,
+            on_token=on_token,
         )
 
     def execute_tool_call(
@@ -225,20 +225,24 @@ class Reasoning(ABC):
         """
         # Ollama emits tool calls correctly only for non-streamed completions.
         # Keep planning streamable, but preserve executable calls by default.
-        if stream is None and self.agent.llm.stream:
-            stream = False
+        if stream is None:
+            stream_setting = getattr(self.agent.llm, "stream", False)
+            if isinstance(stream_setting, bool) and stream_setting:
+                stream = False
         system_prompt = (
             "You are an executor that executes the plan given to you in the prompt through tool calls. "
             "If the plan concludes that no action should be taken, do not call any tool."
         )
         tools = self._resolve_tools_argument(tools, selected_tools)
-        rsp = self.agent.llm.generate(
-            prompt=chaining_message,
-            tool_schema=self._get_tools_schema(tools),
-            tool_choice=tool_calls,
-            system_prompt=system_prompt,
-            stream=stream,
-        )
+        llm_call = {
+            "prompt": chaining_message,
+            "tool_schema": self._get_tools_schema(tools),
+            "tool_choice": tool_calls,
+            "system_prompt": system_prompt,
+        }
+        if stream is not None:
+            llm_call["stream"] = stream
+        rsp = self.agent.llm.generate(**llm_call)
         response_message = rsp.choices[0].message
         plan = Plan(
             step=self.agent.model.steps,
@@ -270,20 +274,24 @@ class Reasoning(ABC):
         exposes exactly those configured tools.
         """
         # See execute_tool_call: streamed Ollama tool responses lose tool-call data.
-        if stream is None and self.agent.llm.stream:
-            stream = False
+        if stream is None:
+            stream_setting = getattr(self.agent.llm, "stream", False)
+            if isinstance(stream_setting, bool) and stream_setting:
+                stream = False
         system_prompt = (
             "You are an executor that executes the plan given to you in the prompt through tool calls. "
             "If the plan concludes that no action should be taken, do not call any tool."
         )
         tools = self._resolve_tools_argument(tools, selected_tools)
-        rsp = await self.agent.llm.agenerate(
-            prompt=chaining_message,
-            tool_schema=self._get_tools_schema(tools),
-            tool_choice=tool_calls,
-            system_prompt=system_prompt,
-            stream=stream,
-        )
+        llm_call = {
+            "prompt": chaining_message,
+            "tool_schema": self._get_tools_schema(tools),
+            "tool_choice": tool_calls,
+            "system_prompt": system_prompt,
+        }
+        if stream is not None:
+            llm_call["stream"] = stream
+        rsp = await self.agent.llm.agenerate(**llm_call)
         response_message = rsp.choices[0].message
         plan = Plan(
             step=self.agent.model.steps,
