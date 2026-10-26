@@ -336,21 +336,14 @@ class ModuleLLM:
                     )
                     return response
                 except Exception:
-                    if "response" in locals():
-                        logger.warning(
-                            "LLM response from fallback model %s: %r",
-                            self.fallback_model,
-                            response,
-                        )
+                    logger.exception(
+                        "Fallback model %s failed",
+                        self.fallback_model,
+                    )
                     raise
 
-            if "response" in locals():
-                logger.warning(
-                    "LLM response from model %s: %r",
-                    model_to_use,
-                    response,
-                )
-
+            if str(error).startswith("This model isn't mapped yet."):
+                raise self._build_invalid_model_error(error) from error
             if isinstance(error, RateLimitError):
                 raise self._build_rate_limit_error(error) from error
             if isinstance(error, NotFoundError):
@@ -423,20 +416,11 @@ class ModuleLLM:
                             )
                             return response
                         except Exception:
-                            if "response" in locals():
-                                logger.warning(
-                                    "LLM response from fallback model %s: %r",
-                                    self.fallback_model,
-                                    response,
-                                )
+                            logger.exception(
+                                "Fallback model %s failed",
+                                self.fallback_model,
+                            )
                             raise
-
-                    if "response" in locals():
-                        logger.warning(
-                            "LLM response from model %s: %r",
-                            model_to_use,
-                            response,
-                        )
 
                     # Treat unmapped-model message from litellm as an invalid model
                     if str(error).startswith("This model isn't mapped yet."):
