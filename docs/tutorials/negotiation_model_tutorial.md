@@ -148,7 +148,7 @@ class Seller(LLMAgent):
         )
 
         # Apply the plan.
-        # In this tutorial, actions are excuted using tools
+        # In this tutorial, actions are executed using tools
 
         self.apply_plan(plan)
 ```
@@ -268,7 +268,7 @@ class NegotiationModel(Model):
             internal_state={"min_price": 60},
         )
 
-        # Place seller Agent to a postion
+        # Place seller Agent to a position
         seller = seller_agents[0]
         self.grid.place_agent(
             seller,
