@@ -32,6 +32,7 @@ from mesa_llm.actions.action_manager import (
 from mesa_llm.actions.action_result import ActionPostCommitError, ActResult
 from mesa_llm.memory.st_lt_memory import STLTMemory
 from mesa_llm.module_llm import ModuleLLM
+from mesa_llm.reasoning.archetype import ArchetypePlan
 from mesa_llm.reasoning.reasoning import (
     _UNSET,
     Observation,
@@ -730,11 +731,19 @@ class LLMAgent(Agent):
             )
         return "; ".join(status_parts)
 
-    async def aapply_plan(self, plan: Plan) -> list[dict]:
+    async def aapply_plan(self, plan: Plan) -> list[dict] | ActResult:
         """
         Asynchronous version of apply_plan.
         """
         self._current_plan = plan
+
+        # Archetype plans hold an already sampled, validated action.
+        # Do not send them to ToolManager or make another LLM request.
+        if isinstance(plan, ArchetypePlan):
+            if plan.action is None:
+                raise ValueError("ArchetypePlan has no sampled action")
+            result = await self.aexecute_action(plan.action)
+            return ActResult(action=plan.action, result=result)
 
         plan_tools = getattr(plan, "tools", _UNSET)
         if plan_tools is _UNSET:
@@ -758,12 +767,20 @@ class LLMAgent(Agent):
 
         return tool_call_resp
 
-    def apply_plan(self, plan: Plan) -> list[dict]:
+    def apply_plan(self, plan: Plan) -> list[dict] | ActResult:
         """
         Execute the plan in the simulation.
         """
         # Store current plan for display
         self._current_plan = plan
+
+        # Archetype plans hold an already sampled, validated action.
+        # Keep the existing tool-plan path unchanged for other strategies.
+        if isinstance(plan, ArchetypePlan):
+            if plan.action is None:
+                raise ValueError("ArchetypePlan has no sampled action")
+            result = self.execute_action(plan.action)
+            return ActResult(action=plan.action, result=result)
 
         # Execute tool calls
         plan_tools = getattr(plan, "tools", _UNSET)
